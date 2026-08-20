@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "CA Performance Club",
+    "slug": "ca-performance-club",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "caperformanceclub",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#080B0A",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cemarslanoglu.caperformanceclub",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#080B0A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.cemarslanoglu.caperformanceclub"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CA Performance Club, seçtiğin gelişim fotoğraflarını profilinde göstermek için fotoğraflarına erişir.",
+          "cameraPermission": "CA Performance Club, gelişim fotoğrafı çekebilmen için kamerana erişir.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-font",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "CA Performance Club; adım, aktif kalori, egzersiz süresi ve antrenman özetlerini performans ekranında göstermek için Apple Sağlık verilerinizi okur.",
+          "NSHealthUpdateUsageDescription": "CA Performance Club, yalnızca açıkça seçtiğiniz fitness verilerini Apple Sağlık'a kaydetmek için izin ister.",
+          "background": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#080B0A",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6f87c527-87f2-44db-895c-3a23b847828c"
+      }
+    },
+    "owner": "caniskent48"
+  }
+}
