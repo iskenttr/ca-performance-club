@@ -21,7 +21,7 @@ CA Performance Club, öğrenci ile personal trainer Cem Arslanoğlu arasındaki 
 
 Veriler yalnızca hesabı doğrulamak, kişisel antrenörlük hizmetini sunmak, programları göstermek, ilerlemeyi takip etmek, dersleri yönetmek, öğrenci–PT iletişimini sağlamak, güvenliği korumak ve destek vermek için kullanılır.
 
-CA Performance Club verileri hedefli reklam, üçüncü taraf reklamcılık, veri broker’ı paylaşımı veya kullanıcı takibi için kullanmaz. Uygulamada yapay zekâ servisi bulunmaz ve veriler AI modeli eğitmek için kullanılmaz.
+CA Performance Club verileri hedefli reklam, üçüncü taraf reklamcılık, veri broker’ı paylaşımı veya kullanıcı takibi için kullanmaz. Kullanıcı fotoğraftan öğün analizi başlattığında seçilen yemek fotoğrafı, yaklaşık yemek ve besin değerlerinin çıkarılması amacıyla sunucu üzerinden LogMeal API'ye aktarılır. Yayın öncesinde LogMeal sözleşmesi, veri saklama süresi ve model eğitimi kullanımı ayrıca doğrulanıp bu metinde açıkça belirtilmelidir.
 
 ## 4. Erişim ve paylaşım
 

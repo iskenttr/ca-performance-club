@@ -5,18 +5,24 @@ import { buildNutritionTemplate, buildProgramTemplate, NutritionTemplateId, Prog
 import { demoAccounts } from '../data/seed';
 import { createCredential, normalizeEmail, verifyCredential } from '../services/auth';
 import {
+  analyzeMealPhoto as analyzeMealPhotoRequest,
   deleteRemoteAccount,
   fetchRemoteData,
+  MealPhotoPayload,
   migrateLegacyAccount,
+  recalculateMealAnalysis as recalculateMealAnalysisRequest,
   remoteRegister,
   remoteSignIn,
+  saveAnalyzedMeal as saveAnalyzedMealRequest,
   saveRemoteData,
 } from '../services/api';
-import { loadData, loadSession, resetStoredData, saveData, saveSession } from '../services/storage';
+import { loadData, loadSession, normalizeData, resetStoredData, saveData, saveSession } from '../services/storage';
 import {
   AppData,
   AppointmentInput,
   MeasurementInput,
+  MealAnalysis,
+  MealType,
   NutritionPlan,
   RegisterInput,
   Role,
@@ -51,6 +57,9 @@ interface AppContextValue {
   toggleExercise: (studentId: string, exerciseId: string) => void;
   deleteCurrentAccount: () => Promise<void>;
   resetDemo: () => Promise<void>;
+  analyzeMealPhoto: (photo: MealPhotoPayload) => Promise<MealAnalysis>;
+  recalculateMealAnalysis: (analysisToken: string, portionGrams: number) => Promise<MealAnalysis>;
+  saveAnalyzedMeal: (input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string }) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -70,16 +79,16 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
           try {
             const remoteData = await fetchRemoteData(storedSession.token);
             if (!active) return;
-            setData(remoteData);
+            setData(normalizeData(remoteData));
             setSessionUserId(storedSession.userId);
             setSessionToken(storedSession.token);
-            await saveData(remoteData);
+            await saveData(normalizeData(remoteData));
             return;
           } catch {
             await saveSession(null);
           }
         }
-        setData(localData);
+        setData(normalizeData(localData));
       })
       .finally(() => active && setIsLoading(false));
     return () => {
@@ -91,8 +100,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     if (!sessionToken) return undefined;
     const refresh = () => {
       void fetchRemoteData(sessionToken).then((next) => {
-        setData(next);
-        void saveData(next);
+        const normalized = normalizeData(next);
+        setData(normalized);
+        void saveData(normalized);
       }).catch(() => undefined);
     };
     const timer = setInterval(refresh, 12000);
@@ -122,8 +132,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     if (localCredential && (await verifyCredential(localCredential, password))) {
       try {
         const migrated = await migrateLegacyAccount(data, email, password);
-        setData(migrated.data);
-        await saveData(migrated.data);
+        const next = normalizeData(migrated.data);
+        setData(next);
+        await saveData(next);
         await openSession(migrated.userId, migrated.token);
         return;
       } catch {
@@ -132,15 +143,17 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     }
     try {
       const result = await remoteSignIn(email, password);
-      setData(result.data);
-      await saveData(result.data);
+      const next = normalizeData(result.data);
+      setData(next);
+      await saveData(next);
       await openSession(result.userId, result.token);
       return;
     } catch (remoteError) {
       if (!localCredential || !(await verifyCredential(localCredential, password))) throw remoteError;
       const result = await migrateLegacyAccount(data, email, password);
-      setData(result.data);
-      await saveData(result.data);
+      const next = normalizeData(result.data);
+      setData(next);
+      await saveData(next);
       await openSession(result.userId, result.token);
     }
   };
@@ -153,8 +166,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const register = async (input: RegisterInput) => {
     if (input.password.length < 8) throw new Error('Şifre en az 8 karakter olmalı.');
     const result = await remoteRegister(input);
-    setData(result.data);
-    await saveData(result.data);
+    const next = normalizeData(result.data);
+    setData(next);
+    await saveData(next);
     await openSession(result.userId, result.token);
   };
 
@@ -348,6 +362,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       appointments: data.appointments.filter((item) => item.studentId !== sessionUserId),
       messages: data.messages.filter((item) => item.studentId !== sessionUserId),
       workoutCompletions: data.workoutCompletions.filter((item) => item.studentId !== sessionUserId),
+      mealEntries: data.mealEntries.filter((item) => item.studentId !== sessionUserId),
     };
     setData(next);
     setSessionUserId(null);
@@ -363,6 +378,26 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     setSessionUserId(null);
     setSessionToken(null);
     setIsLoading(false);
+  };
+
+  const requireSessionToken = () => {
+    if (!sessionToken) throw new Error('Öğün analizi için yeniden giriş yapmalısın.');
+    return sessionToken;
+  };
+
+  const analyzeMealPhoto = (photo: MealPhotoPayload) =>
+    analyzeMealPhotoRequest(photo, requireSessionToken());
+
+  const recalculateMealAnalysis = (analysisToken: string, portionGrams: number) =>
+    recalculateMealAnalysisRequest(analysisToken, portionGrams, requireSessionToken());
+
+  const saveAnalyzedMeal = async (
+    input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string },
+  ) => {
+    const result = await saveAnalyzedMealRequest(input, requireSessionToken());
+    const next = normalizeData(result.data);
+    setData(next);
+    await saveData(next);
   };
 
   const user = data?.users.find((item) => item.id === sessionUserId) ?? null;
@@ -396,6 +431,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       toggleExercise,
       deleteCurrentAccount,
       resetDemo,
+      analyzeMealPhoto,
+      recalculateMealAnalysis,
+      saveAnalyzedMeal,
     }),
     [data, isLoading, students, user],
   );

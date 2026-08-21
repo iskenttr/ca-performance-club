@@ -14,6 +14,8 @@ flowchart LR
   A --> C["PostgreSQL + Row Level Security"]
   A --> D["Özel dosya deposu"]
   A --> E["Realtime mesaj ve takvim olayları"]
+  A --> G["Kimlik doğrulamalı öğün analiz endpoint'i"]
+  G --> H["LogMeal API"]
   F["Hesap silme Edge Function"] --> B
   F --> C
   F --> D
@@ -103,8 +105,7 @@ Kanunen saklanması gereken veri varsa kapsam ve süre önceden açıkça göste
 
 ## Kapsam dışı
 
-- Yapay zekâ, otomatik program üretimi veya AI sohbeti yoktur.
-- HealthKit entegrasyonu yoktur.
+- Otomatik program üretimi veya AI sohbeti yoktur. Yalnız öğrencinin açıkça gönderdiği öğün fotoğrafı LogMeal ile analiz edilir.
+- HealthKit okuma entegrasyonu cihaz tarafında bulunur; sağlık verileri VPS'ye gönderilmez.
 - Ödeme/abonelik yoktur.
 - Çoklu PT, komisyon ve davet kodu yoktur.
-

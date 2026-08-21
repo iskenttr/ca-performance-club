@@ -26,6 +26,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.1",
     "expo-doctor": "^1.20.2",
     "typescript": "~6.0.3"
   },
@@ -37,8 +39,10 @@
     "build:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
     "doctor": "expo-doctor",
+    "test": "python3 -m unittest discover -s server/tests -p 'test_*.py'",
     "build:ios": "npx eas-cli build --platform ios --profile production",
-    "submit:ios": "npx eas-cli submit --platform ios --profile production"
+    "submit:ios": "npx eas-cli submit --platform ios --profile production",
+    "lint": "expo lint"
   },
   "engines": {
     "node": ">=22.13.0"

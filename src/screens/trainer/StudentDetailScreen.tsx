@@ -4,13 +4,14 @@ import React, { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { ExerciseLibrary } from '../../components/ExerciseLibrary';
+import { DailyNutritionSummary, MealHistory } from '../../components/MealTracking';
 import { ProgressReport } from '../../components/ProgressReport';
 import { AppText, Avatar, Button, Card, Chip, EmptyState, ModalSheet, Page, SegmentedControl, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { nutritionTemplateOptions, NutritionTemplateId, programTemplateOptions, ProgramTemplateId } from '../../data/templates';
 import { Exercise, NutritionPlan, Student, WorkoutDay } from '../../types/domain';
-import { formatAppointment, formatDate, formatShortDate } from '../../utils/date';
+import { formatAppointment, formatDate, formatShortDate, toDateInput } from '../../utils/date';
 
 type DetailTab = 'overview' | 'workout' | 'nutrition' | 'progress';
 type ProgressTab = 'report' | 'measurements' | 'photos';
@@ -45,6 +46,8 @@ export const StudentDetailScreen = ({
 
   const program = data?.workoutPrograms.find((item) => item.studentId === studentId);
   const nutrition = data?.nutritionPlans.find((item) => item.studentId === studentId);
+  const mealEntries = data?.mealEntries.filter((item) => item.studentId === studentId) ?? [];
+  const todayMealEntries = mealEntries.filter((item) => toDateInput(new Date(item.eatenAt)) === toDateInput());
   const measurements = useMemo(
     () => (data?.measurements.filter((item) => item.studentId === studentId) ?? []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [data?.measurements, studentId],
@@ -138,6 +141,20 @@ export const StudentDetailScreen = ({
     setEditingNutrition((current) => current ? { ...current, meals: current.meals.filter((meal) => meal.id !== mealId) } : current);
   };
 
+  const changeNutritionTarget = (key: 'caloriesKcal' | 'proteinG' | 'carbsG' | 'fatG', value: string) => {
+    const amount = Number(value.replace(',', '.').replace(/[^0-9.]/g, '')) || 0;
+    setEditingNutrition((current) => current ? {
+      ...current,
+      targets: {
+        caloriesKcal: current.targets?.caloriesKcal ?? 0,
+        proteinG: current.targets?.proteinG ?? 0,
+        carbsG: current.targets?.carbsG ?? 0,
+        fatG: current.targets?.fatG ?? 0,
+        [key]: amount,
+      },
+    } : current);
+  };
+
   const saveNutrition = () => {
     if (!editingNutrition) return;
     const cleanedMeals = editingNutrition.meals.map((meal) => ({
@@ -154,11 +171,25 @@ export const StudentDetailScreen = ({
       setNutritionError('En az bir öğün olmalı; saat 09:30 biçiminde, başlık ve içerik dolu olmalı.');
       return;
     }
+    const targets = editingNutrition.targets;
+    const targetValues = targets ? [targets.caloriesKcal, targets.proteinG, targets.carbsG, targets.fatG] : [];
+    const hasAnyTarget = targetValues.some((item) => item > 0);
+    if (hasAnyTarget && (
+      targetValues.some((item) => item <= 0)
+      || targets!.caloriesKcal > 10000
+      || targets!.proteinG > 1000
+      || targets!.carbsG > 1500
+      || targets!.fatG > 500
+    )) {
+      setNutritionError('Beslenme hedeflerinin tamamını pozitif ve geçerli değerlerle doldur veya hepsini boş bırak.');
+      return;
+    }
     updateNutritionPlan(student.id, {
       ...editingNutrition,
       title: editingNutrition.title.trim(),
       note: editingNutrition.note.trim(),
       meals: cleanedMeals,
+      targets: hasAnyTarget ? targets : undefined,
     });
     setNutritionEditModal(false);
     setEditingNutrition(null);
@@ -264,6 +295,11 @@ export const StudentDetailScreen = ({
         {tab === 'nutrition' ? (
           <>
             <View style={styles.sectionTop}><View style={styles.flex}><AppText style={typography.h2}>Beslenme planı</AppText><AppText style={styles.muted}>Genel fitness beslenme rehberliği.</AppText></View><Button label={nutrition ? 'Şablon' : 'Ata'} icon="food-apple-outline" compact variant="accent" onPress={() => setNutritionModal(true)} /></View>
+            <DailyNutritionSummary entries={todayMealEntries} targets={nutrition?.targets} title={`${student.fullName} · Bugün`} />
+            <View style={styles.historyBlock}>
+              <AppText style={typography.h2}>Fotoğraflı beslenme geçmişi</AppText>
+              <MealHistory entries={mealEntries} emptyDescription="Öğrenci fotoğraftan öğün kaydettiğinde kalori, makro ve fotoğraflar burada görünecek." />
+            </View>
             {nutrition ? (
               <>
                 <Card style={styles.programHeader}>
@@ -345,6 +381,13 @@ export const StudentDetailScreen = ({
               <TextField label="Plan adı" value={editingNutrition.title} onChangeText={(title) => setEditingNutrition((current) => current ? { ...current, title } : current)} placeholder="Örn. Dengeli Beslenme" />
               <TextField label="Günlük su hedefi (litre)" value={`${editingNutrition.dailyWaterLiters}`} onChangeText={(value) => setEditingNutrition((current) => current ? { ...current, dailyWaterLiters: Number(value.replace(',', '.').replace(/[^0-9.]/g, '')) || 0 } : current)} keyboardType="decimal-pad" placeholder="2.5" />
               <TextField label="Cem Hoca'nın plan notu" value={editingNutrition.note} onChangeText={(note) => setEditingNutrition((current) => current ? { ...current, note } : current)} multiline placeholder="Öğrencinin göreceği genel not" />
+              <AppText style={styles.targetTitle}>Günlük kalori ve makro hedefleri (isteğe bağlı)</AppText>
+              <View style={styles.targetFields}>
+                <TextField containerStyle={styles.targetField} label="Kalori (kcal)" value={editingNutrition.targets?.caloriesKcal ? `${editingNutrition.targets.caloriesKcal}` : ''} onChangeText={(value) => changeNutritionTarget('caloriesKcal', value)} keyboardType="decimal-pad" placeholder="2200" />
+                <TextField containerStyle={styles.targetField} label="Protein (g)" value={editingNutrition.targets?.proteinG ? `${editingNutrition.targets.proteinG}` : ''} onChangeText={(value) => changeNutritionTarget('proteinG', value)} keyboardType="decimal-pad" placeholder="160" />
+                <TextField containerStyle={styles.targetField} label="Karbonhidrat (g)" value={editingNutrition.targets?.carbsG ? `${editingNutrition.targets.carbsG}` : ''} onChangeText={(value) => changeNutritionTarget('carbsG', value)} keyboardType="decimal-pad" placeholder="220" />
+                <TextField containerStyle={styles.targetField} label="Yağ (g)" value={editingNutrition.targets?.fatG ? `${editingNutrition.targets.fatG}` : ''} onChangeText={(value) => changeNutritionTarget('fatG', value)} keyboardType="decimal-pad" placeholder="70" />
+              </View>
             </Card>
             {editingNutrition.meals.map((meal, index) => (
               <Card key={meal.id} style={styles.exerciseEditorCard}>
@@ -452,6 +495,7 @@ const styles = StyleSheet.create({
   mealCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
   mealTime: { width: 52, height: 42, borderRadius: 13, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   mealTimeText: { ...typography.caption, fontWeight: '800', color: colors.primary },
+  historyBlock: { gap: spacing.md },
   coachNote: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, backgroundColor: colors.warningSoft },
   measurementRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
   measurementIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
@@ -476,6 +520,9 @@ const styles = StyleSheet.create({
   editorFieldRow: { flexDirection: 'row', gap: spacing.sm },
   editorField: { flex: 1 },
   nutritionEditorHeader: { gap: spacing.md, backgroundColor: '#0E1411' },
+  targetTitle: { ...typography.bodyMedium, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  targetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  targetField: { width: '47%', flexGrow: 1, minWidth: 130 },
   mealEditorRow: { flexDirection: 'row', gap: spacing.sm },
   mealTimeField: { width: 96, minWidth: 0 },
   editorError: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: spacing.md },

@@ -14,7 +14,7 @@ Bu liste 20 Ağustos 2026 tarihindeki Apple ve Expo gereksinimleri dikkate alın
 - [x] Uygulama içinde erişilebilir gizlilik ve kullanım koşulları taslağı
 - [x] Öğrenci hesabını ve ilişkili yerel verileri silme akışı
 - [x] Fitness/beslenme içeriğinin tıbbi tedavi olmadığına dair uyarı
-- [x] AI, reklam SDK’sı ve kullanıcı takibi yok
+- [x] Reklam SDK’sı ve kullanıcı takibi yok; öğün analizi için LogMeal kullanımı belgeli
 - [x] TypeScript, Expo Doctor ve iOS bundle doğrulaması
 
 ## Yayından önce zorunlu
@@ -48,6 +48,7 @@ Apple, 28 Nisan 2026’dan beri App Store Connect’e yüklenen uygulamaların X
 - Kullanıcı kimliği
 - Fitness verileri: program, hareket tamamlama, kilo ve vücut ölçümleri
 - Fotoğraflar
+- Öğün fotoğrafları ve bunlardan çıkarılan yaklaşık besin değerleri (LogMeal işleyicisine aktarılır)
 - Özel metin mesajları
 - Randevu ve serbest metin notları için “Other User Content” değerlendirmesi
 
@@ -69,5 +70,5 @@ Kaynaklar: [App Review Guidelines](https://developer.apple.com/app-store/review/
 ## İnceleme notu taslağı
 
 ```text
-CA Performance Club, tek personal trainer Cem Arslanoğlu ile kayıtlı öğrencileri arasında kullanılan özel fitness takip uygulamasıdır. Yeni öğrenci otomatik olarak Cem Arslanoğlu hesabına bağlanır; herkese açık sosyal akış veya kullanıcı keşfi yoktur. Uygulama antrenman/beslenme planı, ölçüm ve gelişim fotoğrafı takibi, ders planlama ve birebir mesajlaşma sunar. AI, reklam ve kullanıcı takibi kullanılmaz. Öğrenci hesabı Profil > Hesabımı ve verilerimi sil yolundan kalıcı olarak silinebilir.
+CA Performance Club, tek personal trainer Cem Arslanoğlu ile kayıtlı öğrencileri arasında kullanılan özel fitness takip uygulamasıdır. Yeni öğrenci otomatik olarak Cem Arslanoğlu hesabına bağlanır; herkese açık sosyal akış veya kullanıcı keşfi yoktur. Uygulama antrenman/beslenme planı, ölçüm ve gelişim fotoğrafı takibi, ders planlama ve birebir mesajlaşma sunar. Öğrenci açıkça seçtiğinde öğün fotoğrafı yaklaşık besin analizi için backend üzerinden LogMeal'e gönderilir. Reklam ve kullanıcı takibi kullanılmaz. Öğrenci hesabı Profil > Hesabımı ve verilerimi sil yolundan kalıcı olarak silinebilir.
 ```

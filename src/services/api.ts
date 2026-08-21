@@ -1,4 +1,4 @@
-import { AppData, RegisterInput } from '../types/domain';
+import { AppData, MealAnalysis, MealEntry, MealType, RegisterInput } from '../types/domain';
 
 export interface RemoteSession {
   token: string;
@@ -10,6 +10,8 @@ interface AuthResult extends RemoteSession {
 }
 
 const apiBase = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+
+export const resolveApiUrl = (path: string) => path.startsWith('/') ? `${apiBase}${path}` : path;
 
 const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
   let response: Response;
@@ -50,3 +52,32 @@ export const saveRemoteData = (data: AppData, token: string) =>
 
 export const deleteRemoteAccount = (token: string) =>
   request<{ ok: true }>('/api/account', { method: 'DELETE', headers: authHeaders(token) });
+
+export interface MealPhotoPayload {
+  imageBase64: string;
+  mimeType?: string;
+  fileName?: string;
+}
+
+export const analyzeMealPhoto = (photo: MealPhotoPayload, token: string) =>
+  request<MealAnalysis>('/api/meals/analyze', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(photo),
+  });
+
+export const recalculateMealAnalysis = (analysisToken: string, portionGrams: number, token: string) =>
+  request<MealAnalysis>('/api/meals/recalculate', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ analysisToken, portionGrams }),
+  });
+
+export const saveAnalyzedMeal = (
+  input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string },
+  token: string,
+) => request<{ meal: MealEntry; data: AppData }>('/api/meals', {
+  method: 'POST',
+  headers: authHeaders(token),
+  body: JSON.stringify(input),
+});

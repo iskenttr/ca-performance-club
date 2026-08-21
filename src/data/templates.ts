@@ -150,6 +150,7 @@ export const buildNutritionTemplate = (
   studentId: string,
   updatedAt = new Date().toISOString(),
 ): NutritionPlan => {
+  // Kalori ve makro hedefleri şablondan tahmin edilmez; PT tarafından öğrenciye özel girilir.
   const prefix = `${studentId}-${templateId}`;
 
   if (templateId === 'performance') {
@@ -203,4 +204,3 @@ export const buildNutritionTemplate = (
     ],
   };
 };
-

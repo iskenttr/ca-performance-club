@@ -102,6 +102,6 @@ export const createSeedData = async (): Promise<AppData> => {
       exerciseId: item.id,
       completedOn: toDateInput(),
     })),
+    mealEntries: [],
   };
 };
-

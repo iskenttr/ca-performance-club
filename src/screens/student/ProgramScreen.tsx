@@ -4,6 +4,8 @@ import React, { useMemo, useState } from 'react';
 import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { ExerciseLibrary } from '../../components/ExerciseLibrary';
+import { MealPhotoAnalyzer } from '../../components/MealPhotoAnalyzer';
+import { DailyNutritionSummary, MealHistory } from '../../components/MealTracking';
 import { AppText, Card, Chip, EmptyState, Page, SegmentedControl } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
@@ -14,7 +16,7 @@ type ProgramView = 'workout' | 'nutrition';
 
 type MuscleGroup = 'chest' | 'shoulders' | 'arms' | 'back' | 'core' | 'glutes' | 'quads' | 'hamstrings' | 'calves';
 
-const muscleMeta: Record<MuscleGroup, { label: string; points: Array<{ top: `${number}%`; left: `${number}%` }> }> = {
+const muscleMeta: Record<MuscleGroup, { label: string; points: { top: `${number}%`; left: `${number}%` }[] }> = {
   chest: { label: 'Göğüs', points: [{ top: '25%', left: '51%' }] },
   shoulders: { label: 'Omuz', points: [{ top: '22%', left: '40%' }, { top: '22%', left: '61%' }] },
   arms: { label: 'Kol', points: [{ top: '34%', left: '37%' }, { top: '34%', left: '65%' }] },
@@ -67,7 +69,9 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
     [data?.workoutCompletions, student.id, today],
   );
   const completedCount = selectedDay?.exercises.filter((item) => completedIds.has(item.id)).length ?? 0;
-  const muscleLoad = useMemo(() => buildMuscleLoad(selectedDay?.exercises ?? []), [selectedDay?.exercises]);
+  const muscleLoad = buildMuscleLoad(selectedDay?.exercises ?? []);
+  const mealEntries = data?.mealEntries.filter((item) => item.studentId === student.id) ?? [];
+  const todayMealEntries = mealEntries.filter((item) => toDateInput(new Date(item.eatenAt)) === today);
 
   return (
     <View style={styles.root}>
@@ -204,7 +208,7 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
           ) : (
             <Card><EmptyState icon="clipboard-text-outline" title="Program hazırlanıyor" description="Cem Hoca programını atadığında burada tüm günleri ve hareketleri göreceksin." /></Card>
           )
-        ) : nutrition ? (
+        ) : (
           <>
             <ImageBackground source={require('../../../assets/premium/nutrition-detail.png')} style={styles.editorialHero} imageStyle={styles.editorialImage} resizeMode="cover">
               <LinearGradient colors={['rgba(5,8,7,0.10)', 'rgba(5,8,7,0.94)']} start={{ x: 1, y: 0 }} end={{ x: 0, y: 0 }} style={styles.editorialOverlay}>
@@ -212,45 +216,55 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
                 <AppText style={styles.editorialTitle}>Yakıtın, performansın.</AppText>
               </LinearGradient>
             </ImageBackground>
-            <Card style={styles.nutritionHeader}>
-              <View style={styles.nutritionTop}>
-                <View style={styles.nutritionIcon}><MaterialCommunityIcons name="food-apple-outline" size={27} color={colors.primary} /></View>
-                <View style={styles.flex}><AppText style={typography.h2}>{nutrition.title}</AppText><AppText style={styles.updated}>Güncellendi · {formatShortDate(nutrition.updatedAt)}</AppText></View>
-              </View>
-              <View style={styles.waterRow}>
-                <View style={styles.waterIcon}><MaterialCommunityIcons name="water-outline" size={21} color={colors.info} /></View>
-                <View style={styles.flex}><AppText style={typography.bodyMedium}>Günlük su hedefi</AppText><AppText style={styles.updated}>Güne yayarak tüket</AppText></View>
-                <AppText style={styles.waterValue}>{nutrition.dailyWaterLiters} L</AppText>
-              </View>
-            </Card>
-
-            <View style={styles.mealsBlock}>
-              <AppText style={typography.h2}>Günün öğünleri</AppText>
-              {nutrition.meals.map((meal, index) => (
-                <View key={meal.id} style={styles.mealRow}>
-                  <View style={styles.timelineColumn}>
-                    <View style={styles.timelineDot} />
-                    {index < nutrition.meals.length - 1 ? <View style={styles.timelineLine} /> : null}
-                  </View>
-                  <Card style={styles.mealCard}>
-                    <View style={styles.mealTop}><AppText style={styles.mealTime}>{meal.time}</AppText><AppText style={typography.h3}>{meal.title}</AppText></View>
-                    <View style={styles.foodList}>{meal.items.map((item) => <View key={item} style={styles.foodRow}><View style={styles.foodBullet} /><AppText style={styles.foodText}>{item}</AppText></View>)}</View>
-                  </Card>
+            {nutrition ? (
+              <Card style={styles.nutritionHeader}>
+                <View style={styles.nutritionTop}>
+                  <View style={styles.nutritionIcon}><MaterialCommunityIcons name="food-apple-outline" size={27} color={colors.primary} /></View>
+                  <View style={styles.flex}><AppText style={typography.h2}>{nutrition.title}</AppText><AppText style={styles.updated}>Güncellendi · {formatShortDate(nutrition.updatedAt)}</AppText></View>
                 </View>
-              ))}
+                <View style={styles.waterRow}>
+                  <View style={styles.waterIcon}><MaterialCommunityIcons name="water-outline" size={21} color={colors.info} /></View>
+                  <View style={styles.flex}><AppText style={typography.bodyMedium}>Günlük su hedefi</AppText><AppText style={styles.updated}>Güne yayarak tüket</AppText></View>
+                  <AppText style={styles.waterValue}>{nutrition.dailyWaterLiters} L</AppText>
+                </View>
+              </Card>
+            ) : <Card><EmptyState icon="food-apple-outline" title="Beslenme planı hazırlanıyor" description="Planın hazırlanırken fotoğraftan öğün eklemeye devam edebilirsin." /></Card>}
+
+            <MealPhotoAnalyzer />
+            <DailyNutritionSummary entries={todayMealEntries} targets={nutrition?.targets} />
+            <View style={styles.mealsBlock}>
+              <AppText style={typography.h2}>Öğün geçmişim</AppText>
+              <MealHistory entries={mealEntries} />
             </View>
 
-            <Card style={styles.coachNote}>
-              <MaterialCommunityIcons name="lightbulb-on-outline" size={24} color={colors.warning} />
-              <View style={styles.flex}><AppText style={typography.bodyMedium}>Cem Hoca’nın notu</AppText><AppText style={styles.description}>{nutrition.note}</AppText></View>
-            </Card>
+            {nutrition ? (
+              <>
+                <View style={styles.mealsBlock}>
+                  <AppText style={typography.h2}>Cem Hoca’nın planı</AppText>
+                  {nutrition.meals.map((meal, index) => (
+                    <View key={meal.id} style={styles.mealRow}>
+                      <View style={styles.timelineColumn}>
+                        <View style={styles.timelineDot} />
+                        {index < nutrition.meals.length - 1 ? <View style={styles.timelineLine} /> : null}
+                      </View>
+                      <Card style={styles.mealCard}>
+                        <View style={styles.mealTop}><AppText style={styles.mealTime}>{meal.time}</AppText><AppText style={typography.h3}>{meal.title}</AppText></View>
+                        <View style={styles.foodList}>{meal.items.map((item) => <View key={item} style={styles.foodRow}><View style={styles.foodBullet} /><AppText style={styles.foodText}>{item}</AppText></View>)}</View>
+                      </Card>
+                    </View>
+                  ))}
+                </View>
+                <Card style={styles.coachNote}>
+                  <MaterialCommunityIcons name="lightbulb-on-outline" size={24} color={colors.warning} />
+                  <View style={styles.flex}><AppText style={typography.bodyMedium}>Cem Hoca’nın notu</AppText><AppText style={styles.description}>{nutrition.note}</AppText></View>
+                </Card>
+              </>
+            ) : null}
             <View style={styles.disclaimer}>
               <MaterialCommunityIcons name="information-outline" size={18} color={colors.inkSoft} />
               <AppText style={styles.disclaimerText}>Bu plan genel fitness desteğidir; tıbbi beslenme tedavisi yerine geçmez. Alerji veya sağlık durumunda uzman görüşü al.</AppText>
             </View>
           </>
-        ) : (
-          <Card><EmptyState icon="food-apple-outline" title="Beslenme planı hazırlanıyor" description="Cem Hoca planını atadığında öğünleri burada göreceksin." /></Card>
         )}
       </Page>
     </View>

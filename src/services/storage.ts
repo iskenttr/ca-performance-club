@@ -8,6 +8,11 @@ import { RemoteSession } from './api';
 const DATA_KEY = '@cemfit/data/v1';
 const SESSION_KEY = '@cemfit/session/v1';
 
+export const normalizeData = (data: AppData): AppData => ({
+  ...data,
+  mealEntries: Array.isArray(data.mealEntries) ? data.mealEntries : [],
+});
+
 export const loadData = async (): Promise<AppData> => {
   const stored = await AsyncStorage.getItem(DATA_KEY);
   if (!stored) {
@@ -23,7 +28,7 @@ export const loadData = async (): Promise<AppData> => {
       await saveData(seed);
       return seed;
     }
-    return parsed;
+    return normalizeData(parsed);
   } catch {
     const seed = await createSeedData();
     await saveData(seed);

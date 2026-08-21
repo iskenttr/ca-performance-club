@@ -1,6 +1,6 @@
 # CA Performance Club
 
-Cem Arslanoğlu için geliştirilmiş tek PT’li, mobil-first fitness takip uygulaması. Expo SDK 57, React Native ve TypeScript kullanır. Uygulamada yapay zekâ özelliği veya AI servisi bulunmaz.
+Cem Arslanoğlu için geliştirilmiş tek PT’li, mobil-first fitness takip uygulaması. Expo SDK 57, React Native ve TypeScript kullanır. Öğün fotoğrafları isteğe bağlı olarak backend üzerinden LogMeal ile analiz edilir; program ve beslenme planı üretiminde AI kullanılmaz.
 
 ## Çalışan MVP kapsamı
 
@@ -11,6 +11,7 @@ Cem Arslanoğlu için geliştirilmiş tek PT’li, mobil-first fitness takip uyg
 - Profil ve hedef bilgileri
 - Antrenman programı, gün/hareket listesi ve tamamlama takibi
 - Beslenme planı ve su hedefi
+- Fotoğraftan yaklaşık kalori/makro analizi, porsiyon düzeltme ve öğün geçmişi
 - Kilo/vücut ölçüleri, geçmiş ve basit gelişim grafiği
 - Kamera veya galeriden gelişim fotoğrafı
 - Ders takvimi ve yeni ders talebi
@@ -25,6 +26,7 @@ Cem Arslanoğlu için geliştirilmiş tek PT’li, mobil-first fitness takip uyg
 - Hazır şablondan antrenman programı atama/değiştirme
 - Hazır şablondan beslenme planı atama/değiştirme
 - Öğrencinin ölçüm ve gelişim fotoğraflarını görüntüleme
+- Öğrencinin fotoğraflı öğün geçmişini ve günlük kalori/makro toplamlarını görüntüleme
 - Ders ekleme, talep onaylama, tamamlama ve iptal
 - Öğrenci bazlı mesaj kutusu
 
@@ -59,6 +61,7 @@ iOS’un yerel simülatörü yalnızca macOS’ta çalışır. Windows’tan ger
 ```bash
 npm run typecheck
 npm run doctor
+npm run test
 npx expo export --platform ios
 ```
 
@@ -76,6 +79,8 @@ Web sürümü VPS üzerindeki ortak sunucu adaptörüyle çalışır:
 - Önceki yerel sürümde oluşturulan hesaplar ilk başarılı girişte ortak sunucuya aktarılır.
 
 Gelişim fotoğrafları için sonraki üretim adımı özel nesne depolama alanına geçiştir. Hedef App Store yapısı [Mimari ve üretime geçiş](./docs/ARCHITECTURE.md) belgesinde tanımlıdır.
+
+Fotoğraftan öğün analizi için VPS prosesinde `LOGMEAL_API_TOKEN` tanımlanmalıdır. Token istemci bundle'ına girmez. Kurulum, güvenlik ve test akışı için [LogMeal entegrasyonu](./docs/LOGMEAL_INTEGRATION.md) belgesine bak.
 
 ## iOS dağıtımı
 

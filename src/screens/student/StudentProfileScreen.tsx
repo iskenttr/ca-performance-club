@@ -147,11 +147,11 @@ const SettingRow = ({ icon, label, value, onPress }: { icon: keyof typeof Materi
 const PrivacyCopy = () => (
   <View style={styles.policyCopy}>
     <AppText style={typography.h3}>Veri sorumluluğu</AppText>
-    <AppText style={styles.policyText}>{APP_NAME}, profil, antrenman, ölçüm, gelişim fotoğrafı, randevu ve mesaj verilerini yalnızca kişisel antrenörlük hizmetini sunmak için işler.</AppText>
+    <AppText style={styles.policyText}>{APP_NAME}, profil, antrenman, ölçüm, gelişim ve öğün fotoğrafı, randevu ve mesaj verilerini yalnızca kişisel antrenörlük hizmetini sunmak için işler.</AppText>
     <AppText style={typography.h3}>Erişim ve paylaşım</AppText>
     <AppText style={styles.policyText}>Öğrenci verileri öğrenci ile Cem Arslanoğlu arasında özeldir. Üretim sürümünde veriler şifreli aktarım, yetki kuralları ve güvenli saklama ile korunmalıdır; reklam amacıyla satılmaz.</AppText>
     <AppText style={typography.h3}>Fotoğraf ve sağlık verileri</AppText>
-    <AppText style={styles.policyText}>Gelişim fotoğrafları ve vücut ölçüleri hassas kabul edilir. Kullanıcı açıkça eklemeden toplanmaz ve hesap silindiğinde diğer hesap verileriyle birlikte kaldırılır.</AppText>
+    <AppText style={styles.policyText}>{"Gelişim fotoğrafları, öğün fotoğrafları ve vücut ölçüleri hassas kabul edilir. Öğün fotoğrafı yalnız kullanıcı analiz başlattığında yaklaşık besin değerlerinin çıkarılması için backend üzerinden LogMeal'e gönderilir. Hesap silindiğinde kayıtlı kopya diğer hesap verileriyle birlikte kaldırılır."}</AppText>
     <AppText style={typography.h3}>Hakların</AppText>
     <AppText style={styles.policyText}>Bilgilerini uygulama içinden görebilir ve düzeltebilir; “Hesabımı ve verilerimi sil” seçeneğiyle silebilirsin.</AppText>
     <AppText style={styles.policyDate}>Taslak sürüm · 20 Ağustos 2026</AppText>
@@ -201,4 +201,3 @@ const styles = StyleSheet.create({
   policyDate: { ...typography.caption, color: colors.inkSoft, marginTop: spacing.lg },
   pressed: { opacity: 0.65 },
 });
-

@@ -3,6 +3,7 @@ export const TRAINER_ID = 'trainer-cem-arslanoglu';
 export type Role = 'student' | 'trainer';
 export type StudentStatus = 'new' | 'active' | 'paused';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export interface BaseUser {
   id: string;
@@ -83,6 +84,52 @@ export interface NutritionPlan {
   note: string;
   updatedAt: string;
   meals: Meal[];
+  targets?: NutritionTargets;
+}
+
+export interface NutritionTargets {
+  caloriesKcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export interface AnalyzedFoodItem {
+  name: string;
+  logMealDishId?: number;
+  confidence?: number;
+  portionGrams?: number;
+  ingredients: { name: string; quantity?: number; unit?: string }[];
+}
+
+export interface MealAnalysis {
+  analysisToken: string;
+  logMealImageId: number;
+  name: string;
+  foods: AnalyzedFoodItem[];
+  portionGrams?: number;
+  caloriesKcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export interface MealEntry {
+  id: string;
+  studentId: string;
+  eatenAt: string;
+  mealType: MealType;
+  photoUri: string;
+  name: string;
+  foods: AnalyzedFoodItem[];
+  portionGrams?: number;
+  caloriesKcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  logMealImageId: number;
+  logMealDishIds: number[];
+  createdAt: string;
 }
 
 export interface Measurement {
@@ -142,6 +189,7 @@ export interface AppData {
   appointments: Appointment[];
   messages: ChatMessage[];
   workoutCompletions: WorkoutCompletion[];
+  mealEntries: MealEntry[];
 }
 
 export interface RegisterInput {
@@ -159,4 +207,3 @@ export type MeasurementInput = Omit<Measurement, 'id' | 'studentId' | 'date'> & 
 };
 
 export type AppointmentInput = Pick<Appointment, 'studentId' | 'startAt' | 'durationMinutes' | 'note'>;
-
