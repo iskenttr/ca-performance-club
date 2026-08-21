@@ -9,7 +9,7 @@ CA Performance Club, Apple Fitness verilerini doğrudan Fitness uygulamasından 
 - Günlük egzersiz süresi
 - Günlük antrenman sayısı ve antrenman özetleri
 
-İzin yalnızca öğrenci ana ekranındaki **Apple Health'e bağlan** düğmesine dokunulduğunda istenir. Sağlık verileri CA Performance Club'ın yerel demo deposuna kaydedilmez; kart açıldığında cihazdaki HealthKit deposundan okunur. Reklam, pazarlama veya AI amacıyla kullanılmaz.
+İzin yalnızca öğrenci ana ekranındaki **Apple Health'e bağlan** düğmesine dokunulduğunda istenir. İzin verildikten sonra veriler uygulama açıldığında, yeniden ön plana geldiğinde, HealthKit değişiklik bildirdiğinde ve uygulama açık kaldığı sürece belirli aralıklarla otomatik yenilenir. Sağlık verileri yalnızca öğrencinin cihazındaki kartta gösterilir; VPS'ye veya Cem Hoca paneline gönderilmez. Reklam, pazarlama veya AI amacıyla kullanılmaz.
 
 ## Derleme
 

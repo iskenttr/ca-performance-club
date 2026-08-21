@@ -17,3 +17,5 @@ export const emptyAppleHealthSnapshot = (): AppleHealthSnapshot => ({
 export const isAppleHealthAvailable = async () => false;
 export const requestAppleHealthAccess = async () => false;
 export const readAppleHealthSnapshot = async () => emptyAppleHealthSnapshot();
+export const configureAppleHealthBackgroundUpdates = async () => false;
+export const subscribeToAppleHealthChanges = (_onChange: () => void) => () => undefined;

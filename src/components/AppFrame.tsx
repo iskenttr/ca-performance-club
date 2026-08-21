@@ -89,6 +89,7 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   tabSafeArea: {
     backgroundColor: colors.cream,
+    paddingHorizontal: spacing.md,
     ...(Platform.OS === 'web' ? { alignItems: 'center' as const } : {}),
   },
   tabBar: {
@@ -96,7 +97,6 @@ const styles = StyleSheet.create({
     height: 72,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.sm,
-    marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
     borderRadius: radius.lg,
     borderWidth: 1,

@@ -4,11 +4,20 @@ import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo
 import { buildNutritionTemplate, buildProgramTemplate, NutritionTemplateId, ProgramTemplateId } from '../data/templates';
 import { demoAccounts } from '../data/seed';
 import { createCredential, normalizeEmail, verifyCredential } from '../services/auth';
+import {
+  deleteRemoteAccount,
+  fetchRemoteData,
+  migrateLegacyAccount,
+  remoteRegister,
+  remoteSignIn,
+  saveRemoteData,
+} from '../services/api';
 import { loadData, loadSession, resetStoredData, saveData, saveSession } from '../services/storage';
 import {
   AppData,
   AppointmentInput,
   MeasurementInput,
+  NutritionPlan,
   RegisterInput,
   Role,
   Student,
@@ -31,6 +40,7 @@ interface AppContextValue {
   assignProgram: (studentId: string, templateId: ProgramTemplateId) => void;
   updateWorkoutDay: (studentId: string, day: WorkoutDay) => void;
   assignNutrition: (studentId: string, templateId: NutritionTemplateId) => void;
+  updateNutritionPlan: (studentId: string, plan: NutritionPlan) => void;
   addMeasurement: (studentId: string, input: MeasurementInput) => void;
   addProgressPhoto: (studentId: string, uri: string, caption?: string) => void;
   removeProgressPhoto: (photoId: string) => void;
@@ -48,17 +58,28 @@ const AppContext = createContext<AppContextValue | null>(null);
 export const AppProvider = ({ children }: PropsWithChildren) => {
   const [data, setData] = useState<AppData | null>(null);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     Promise.all([loadData(), loadSession()])
-      .then(([nextData, storedUserId]) => {
+      .then(async ([localData, storedSession]) => {
         if (!active) return;
-        setData(nextData);
-        if (storedUserId && nextData.users.some((item) => item.id === storedUserId)) {
-          setSessionUserId(storedUserId);
+        if (storedSession) {
+          try {
+            const remoteData = await fetchRemoteData(storedSession.token);
+            if (!active) return;
+            setData(remoteData);
+            setSessionUserId(storedSession.userId);
+            setSessionToken(storedSession.token);
+            await saveData(remoteData);
+            return;
+          } catch {
+            await saveSession(null);
+          }
         }
+        setData(localData);
       })
       .finally(() => active && setIsLoading(false));
     return () => {
@@ -66,28 +87,62 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sessionToken) return undefined;
+    const refresh = () => {
+      void fetchRemoteData(sessionToken).then((next) => {
+        setData(next);
+        void saveData(next);
+      }).catch(() => undefined);
+    };
+    const timer = setInterval(refresh, 12000);
+    return () => clearInterval(timer);
+  }, [sessionToken]);
+
   const commit = (recipe: (current: AppData) => AppData) => {
     setData((current) => {
       if (!current) return current;
       const next = recipe(current);
       void saveData(next);
+      if (sessionToken) void saveRemoteData(next, sessionToken);
       return next;
     });
   };
 
-  const openSession = async (userId: string) => {
+  const openSession = async (userId: string, token: string) => {
     setSessionUserId(userId);
-    await saveSession(userId);
+    setSessionToken(token);
+    await saveSession({ userId, token });
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const signIn = async (email: string, password: string) => {
     if (!data) throw new Error('Veriler henüz hazır değil.');
-    const credential = data.credentials.find((item) => item.email === normalizeEmail(email));
-    if (!credential || !(await verifyCredential(credential, password))) {
-      throw new Error('E-posta veya şifre hatalı.');
+    const localCredential = data.credentials.find((item) => item.email === normalizeEmail(email));
+    if (localCredential && (await verifyCredential(localCredential, password))) {
+      try {
+        const migrated = await migrateLegacyAccount(data, email, password);
+        setData(migrated.data);
+        await saveData(migrated.data);
+        await openSession(migrated.userId, migrated.token);
+        return;
+      } catch {
+        // Hesap daha önce sunucuya aktarılmışsa normal giriş akışına devam et.
+      }
     }
-    await openSession(credential.userId);
+    try {
+      const result = await remoteSignIn(email, password);
+      setData(result.data);
+      await saveData(result.data);
+      await openSession(result.userId, result.token);
+      return;
+    } catch (remoteError) {
+      if (!localCredential || !(await verifyCredential(localCredential, password))) throw remoteError;
+      const result = await migrateLegacyAccount(data, email, password);
+      setData(result.data);
+      await saveData(result.data);
+      await openSession(result.userId, result.token);
+    }
   };
 
   const demoSignIn = async (role: Role) => {
@@ -96,52 +151,16 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   };
 
   const register = async (input: RegisterInput) => {
-    if (!data) throw new Error('Veriler henüz hazır değil.');
-    const email = normalizeEmail(input.email);
-    if (data.credentials.some((item) => item.email === email)) {
-      throw new Error('Bu e-posta ile daha önce kayıt olunmuş.');
-    }
     if (input.password.length < 8) throw new Error('Şifre en az 8 karakter olmalı.');
-
-    const userId = `student-${Crypto.randomUUID()}`;
-    const student: Student = {
-      id: userId,
-      role: 'student',
-      trainerId: TRAINER_ID,
-      status: 'new',
-      fullName: input.fullName.trim(),
-      email,
-      phone: input.phone.trim(),
-      goal: input.goal,
-      level: input.level,
-      weeklyGoal: input.weeklyGoal,
-      createdAt: new Date().toISOString(),
-    };
-    const credential = await createCredential(userId, email, input.password);
-    const now = new Date().toISOString();
-
-    const next: AppData = {
-      ...data,
-      users: [...data.users, student],
-      credentials: [...data.credentials, credential],
-      messages: [
-        ...data.messages,
-        {
-          id: `msg-${Crypto.randomUUID()}`,
-          studentId: userId,
-          senderId: TRAINER_ID,
-          text: `CA Performance Club'a hoş geldin ${student.fullName.split(' ')[0]}! Profilini inceleyip programını birlikte netleştireceğiz.`,
-          sentAt: now,
-        },
-      ],
-    };
-    setData(next);
-    await saveData(next);
-    await openSession(userId);
+    const result = await remoteRegister(input);
+    setData(result.data);
+    await saveData(result.data);
+    await openSession(result.userId, result.token);
   };
 
   const signOut = async () => {
     setSessionUserId(null);
+    setSessionToken(null);
     await saveSession(null);
   };
 
@@ -170,6 +189,18 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     commit((current) => ({
       ...current,
       nutritionPlans: [...current.nutritionPlans.filter((item) => item.studentId !== studentId), plan],
+    }));
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const updateNutritionPlan = (studentId: string, plan: NutritionPlan) => {
+    commit((current) => ({
+      ...current,
+      nutritionPlans: current.nutritionPlans.map((item) =>
+        item.studentId === studentId
+          ? { ...plan, id: item.id, studentId, updatedAt: new Date().toISOString() }
+          : item,
+      ),
     }));
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -303,7 +334,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   };
 
   const deleteCurrentAccount = async () => {
-    if (!data || !sessionUserId) return;
+    if (!data || !sessionUserId || !sessionToken) return;
     const target = data.users.find((item) => item.id === sessionUserId);
     if (!target || target.role !== 'student') throw new Error('Eğitmen hesabı bu demo içinden silinemez.');
     const next: AppData = {
@@ -320,6 +351,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     };
     setData(next);
     setSessionUserId(null);
+    setSessionToken(null);
+    await deleteRemoteAccount(sessionToken);
     await Promise.all([saveData(next), saveSession(null)]);
   };
 
@@ -328,6 +361,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     const seed = await resetStoredData();
     setData(seed);
     setSessionUserId(null);
+    setSessionToken(null);
     setIsLoading(false);
   };
 
@@ -351,6 +385,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       assignProgram,
       updateWorkoutDay,
       assignNutrition,
+      updateNutritionPlan,
       addMeasurement,
       addProgressPhoto,
       removeProgressPhoto,

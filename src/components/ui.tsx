@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   },
   fieldMultiline: { alignItems: 'flex-start', paddingTop: spacing.md },
   fieldError: { borderColor: colors.danger },
-  input: { flex: 1, color: colors.ink, fontSize: 15, paddingVertical: 0 },
+  input: { flex: 1, minWidth: 0, color: colors.ink, fontSize: Platform.OS === 'web' ? 16 : 15, paddingVertical: 0 },
   inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
   errorText: { ...typography.caption, color: colors.danger, marginLeft: 2 },
   avatar: { backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },

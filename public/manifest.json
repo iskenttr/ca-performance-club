@@ -1,0 +1,19 @@
+{
+  "short_name": "CA Perform",
+  "name": "CA Performance Club",
+  "description": "Cem Arslanoğlu ile kişisel antrenman ve performans takibi",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#080B0A",
+  "background_color": "#080B0A",
+  "lang": "tr"
+}

@@ -3,13 +3,14 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useMemo, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
+import { ProgressReport } from '../../components/ProgressReport';
 import { AppText, Button, Card, EmptyState, ModalSheet, Page, SectionHeader, SegmentedControl, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types/domain';
 import { formatDate, formatShortDate } from '../../utils/date';
 
-type ProgressView = 'measurements' | 'photos';
+type ProgressView = 'report' | 'measurements' | 'photos';
 
 const parseNumber = (value: string) => {
   const parsed = Number(value.replace(',', '.'));
@@ -19,7 +20,7 @@ const parseNumber = (value: string) => {
 export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
   const { data, user, addMeasurement, addProgressPhoto, removeProgressPhoto } = useApp();
   const student = user as Student;
-  const [view, setView] = useState<ProgressView>('measurements');
+  const [view, setView] = useState<ProgressView>('report');
   const [measurementModal, setMeasurementModal] = useState(false);
   const [photoModal, setPhotoModal] = useState(false);
   const [weight, setWeight] = useState('');
@@ -102,9 +103,11 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
     <View style={styles.root}>
       <TopBar eyebrow="İlerlemem" title="Gelişim" name={student.fullName} onProfile={onProfile} />
       <Page>
-        <SegmentedControl<ProgressView> value={view} options={[{ value: 'measurements', label: 'Ölçümler' }, { value: 'photos', label: 'Fotoğraflar' }]} onChange={setView} />
+        <SegmentedControl<ProgressView> value={view} options={[{ value: 'report', label: 'Rapor' }, { value: 'measurements', label: 'Ölçümler' }, { value: 'photos', label: 'Fotoğraflar' }]} onChange={setView} />
 
-        {view === 'measurements' ? (
+        {view === 'report' ? (
+          <ProgressReport student={student} />
+        ) : view === 'measurements' ? (
           <>
             <Card style={styles.summaryCard}>
               <View style={styles.summaryTop}>

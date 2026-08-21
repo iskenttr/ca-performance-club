@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { createSeedData, SCHEMA_VERSION } from '../data/seed';
 import { AppData } from '../types/domain';
+import { RemoteSession } from './api';
 
 const DATA_KEY = '@cemfit/data/v1';
 const SESSION_KEY = '@cemfit/session/v1';
@@ -32,19 +33,26 @@ export const loadData = async (): Promise<AppData> => {
 
 export const saveData = (data: AppData) => AsyncStorage.setItem(DATA_KEY, JSON.stringify(data));
 
-export const loadSession = async () => {
-  if (Platform.OS === 'web') return AsyncStorage.getItem(SESSION_KEY);
-  return SecureStore.getItemAsync(SESSION_KEY);
+export const loadSession = async (): Promise<RemoteSession | null> => {
+  const stored = Platform.OS === 'web' ? await AsyncStorage.getItem(SESSION_KEY) : await SecureStore.getItemAsync(SESSION_KEY);
+  if (!stored) return null;
+  try {
+    const parsed = JSON.parse(stored) as RemoteSession;
+    return parsed.token && parsed.userId ? parsed : null;
+  } catch {
+    return null;
+  }
 };
 
-export const saveSession = async (userId: string | null) => {
+export const saveSession = async (session: RemoteSession | null) => {
+  const value = session ? JSON.stringify(session) : null;
   if (Platform.OS === 'web') {
-    if (userId) await AsyncStorage.setItem(SESSION_KEY, userId);
+    if (value) await AsyncStorage.setItem(SESSION_KEY, value);
     else await AsyncStorage.removeItem(SESSION_KEY);
     return;
   }
 
-  if (userId) await SecureStore.setItemAsync(SESSION_KEY, userId);
+  if (value) await SecureStore.setItemAsync(SESSION_KEY, value);
   else await SecureStore.deleteItemAsync(SESSION_KEY);
 };
 
@@ -54,4 +62,3 @@ export const resetStoredData = async () => {
   await saveSession(null);
   return seed;
 };
-

@@ -3,15 +3,17 @@ import * as Crypto from 'expo-crypto';
 import React, { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
+import { ExerciseLibrary } from '../../components/ExerciseLibrary';
+import { ProgressReport } from '../../components/ProgressReport';
 import { AppText, Avatar, Button, Card, Chip, EmptyState, ModalSheet, Page, SegmentedControl, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { nutritionTemplateOptions, NutritionTemplateId, programTemplateOptions, ProgramTemplateId } from '../../data/templates';
-import { Exercise, Student, WorkoutDay } from '../../types/domain';
+import { Exercise, NutritionPlan, Student, WorkoutDay } from '../../types/domain';
 import { formatAppointment, formatDate, formatShortDate } from '../../utils/date';
 
 type DetailTab = 'overview' | 'workout' | 'nutrition' | 'progress';
-type ProgressTab = 'measurements' | 'photos';
+type ProgressTab = 'report' | 'measurements' | 'photos';
 
 export const StudentDetailScreen = ({
   studentId,
@@ -24,16 +26,19 @@ export const StudentDetailScreen = ({
   onMessage: () => void;
   onCalendar: () => void;
 }) => {
-  const { data, students, assignProgram, assignNutrition, updateUser, updateWorkoutDay } = useApp();
+  const { data, students, assignProgram, assignNutrition, updateNutritionPlan, updateUser, updateWorkoutDay } = useApp();
   const student = students.find((item) => item.id === studentId);
   const [tab, setTab] = useState<DetailTab>('overview');
-  const [progressTab, setProgressTab] = useState<ProgressTab>('measurements');
+  const [progressTab, setProgressTab] = useState<ProgressTab>('report');
   const [programModal, setProgramModal] = useState(false);
   const [nutritionModal, setNutritionModal] = useState(false);
+  const [nutritionEditModal, setNutritionEditModal] = useState(false);
   const [notesModal, setNotesModal] = useState(false);
   const [exerciseModal, setExerciseModal] = useState(false);
   const [editingDay, setEditingDay] = useState<WorkoutDay | null>(null);
   const [exerciseError, setExerciseError] = useState('');
+  const [nutritionError, setNutritionError] = useState('');
+  const [editingNutrition, setEditingNutrition] = useState<NutritionPlan | null>(null);
   const [selectedProgram, setSelectedProgram] = useState<ProgramTemplateId>('balanced3');
   const [selectedNutrition, setSelectedNutrition] = useState<NutritionTemplateId>('balanced');
   const [notes, setNotes] = useState(student?.notes ?? '');
@@ -103,6 +108,60 @@ export const StudentDetailScreen = ({
     });
     setExerciseModal(false);
     setEditingDay(null);
+  };
+
+  const openNutritionEditor = () => {
+    if (!nutrition) return;
+    setEditingNutrition({
+      ...nutrition,
+      meals: nutrition.meals.map((meal) => ({ ...meal, items: [...meal.items] })),
+    });
+    setNutritionError('');
+    setNutritionEditModal(true);
+  };
+
+  const changeMeal = (mealId: string, changes: Partial<NutritionPlan['meals'][number]>) => {
+    setEditingNutrition((current) => current ? {
+      ...current,
+      meals: current.meals.map((meal) => meal.id === mealId ? { ...meal, ...changes } : meal),
+    } : current);
+  };
+
+  const addMeal = () => {
+    setEditingNutrition((current) => current ? {
+      ...current,
+      meals: [...current.meals, { id: `meal-${Crypto.randomUUID()}`, time: '12:00', title: 'Yeni öğün', items: [''] }],
+    } : current);
+  };
+
+  const removeMeal = (mealId: string) => {
+    setEditingNutrition((current) => current ? { ...current, meals: current.meals.filter((meal) => meal.id !== mealId) } : current);
+  };
+
+  const saveNutrition = () => {
+    if (!editingNutrition) return;
+    const cleanedMeals = editingNutrition.meals.map((meal) => ({
+      ...meal,
+      time: meal.time.trim(),
+      title: meal.title.trim(),
+      items: meal.items.map((item) => item.trim()).filter(Boolean),
+    }));
+    if (!editingNutrition.title.trim() || editingNutrition.dailyWaterLiters <= 0 || editingNutrition.dailyWaterLiters > 12) {
+      setNutritionError('Plan adı ve 0–12 litre arasındaki su hedefini kontrol et.');
+      return;
+    }
+    if (!cleanedMeals.length || cleanedMeals.some((meal) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(meal.time) || !meal.title || !meal.items.length)) {
+      setNutritionError('En az bir öğün olmalı; saat 09:30 biçiminde, başlık ve içerik dolu olmalı.');
+      return;
+    }
+    updateNutritionPlan(student.id, {
+      ...editingNutrition,
+      title: editingNutrition.title.trim(),
+      note: editingNutrition.note.trim(),
+      meals: cleanedMeals,
+    });
+    setNutritionEditModal(false);
+    setEditingNutrition(null);
   };
 
   return (
@@ -185,6 +244,11 @@ export const StudentDetailScreen = ({
                   <View style={styles.programIcon}><MaterialCommunityIcons name="dumbbell" size={26} color={colors.primary} /></View>
                   <View style={styles.flex}><AppText style={typography.h2}>{program.title}</AppText><AppText style={styles.muted}>{program.description}</AppText><AppText style={styles.updated}>Güncellendi · {formatDate(program.updatedAt)}</AppText></View>
                 </Card>
+                <ExerciseLibrary
+                  names={program.days.flatMap((programDay) =>
+                    programDay.exercises.map((exercise) => exercise.name),
+                  )}
+                />
                 {program.days.map((day) => (
                   <Card key={day.id} style={styles.dayCard}>
                     <View style={styles.dayHeader}><View style={styles.dayBadge}><AppText style={styles.dayBadgeText}>{day.label.split('.')[0]}</AppText></View><View style={styles.flex}><AppText style={typography.h3}>{day.title}</AppText><AppText style={styles.muted}>{day.focus} · {day.durationMinutes} dk</AppText></View><Button label="Düzenle" icon="pencil-outline" compact variant="secondary" onPress={() => openExerciseEditor(day)} /></View>
@@ -199,12 +263,13 @@ export const StudentDetailScreen = ({
 
         {tab === 'nutrition' ? (
           <>
-            <View style={styles.sectionTop}><View><AppText style={typography.h2}>Beslenme planı</AppText><AppText style={styles.muted}>Genel fitness beslenme rehberliği.</AppText></View><Button label={nutrition ? 'Değiştir' : 'Ata'} icon="food-apple-outline" compact variant="accent" onPress={() => setNutritionModal(true)} /></View>
+            <View style={styles.sectionTop}><View style={styles.flex}><AppText style={typography.h2}>Beslenme planı</AppText><AppText style={styles.muted}>Genel fitness beslenme rehberliği.</AppText></View><Button label={nutrition ? 'Şablon' : 'Ata'} icon="food-apple-outline" compact variant="accent" onPress={() => setNutritionModal(true)} /></View>
             {nutrition ? (
               <>
                 <Card style={styles.programHeader}>
                   <View style={[styles.programIcon, styles.nutritionIcon]}><MaterialCommunityIcons name="food-apple-outline" size={26} color={colors.primary} /></View>
                   <View style={styles.flex}><AppText style={typography.h2}>{nutrition.title}</AppText><AppText style={styles.muted}>{nutrition.dailyWaterLiters} litre günlük su hedefi</AppText><AppText style={styles.updated}>Güncellendi · {formatDate(nutrition.updatedAt)}</AppText></View>
+                  <Button label="Düzenle" icon="pencil-outline" compact variant="secondary" onPress={openNutritionEditor} />
                 </Card>
                 {nutrition.meals.map((meal) => (
                   <Card key={meal.id} style={styles.mealCard}>
@@ -220,8 +285,10 @@ export const StudentDetailScreen = ({
 
         {tab === 'progress' ? (
           <>
-            <SegmentedControl<ProgressTab> value={progressTab} options={[{ value: 'measurements', label: `Ölçümler (${measurements.length})` }, { value: 'photos', label: `Fotoğraflar (${photos.length})` }]} onChange={setProgressTab} />
-            {progressTab === 'measurements' ? measurements.length ? (
+            <SegmentedControl<ProgressTab> value={progressTab} options={[{ value: 'report', label: 'Rapor' }, { value: 'measurements', label: `Ölçüm (${measurements.length})` }, { value: 'photos', label: `Fotoğraf (${photos.length})` }]} onChange={setProgressTab} />
+            {progressTab === 'report' ? (
+              <ProgressReport student={student} />
+            ) : progressTab === 'measurements' ? measurements.length ? (
               <>
                 <View style={styles.metricGrid}>
                   <Metric icon="scale-bathroom" label="Güncel kilo" value={`${latest?.weightKg.toFixed(1)} kg`} detail={`${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg toplam`} />
@@ -265,6 +332,39 @@ export const StudentDetailScreen = ({
           </Pressable>
         ))}
         <Button label="Planı ata" icon="check" onPress={() => { assignNutrition(student.id, selectedNutrition); setNutritionModal(false); }} />
+      </ModalSheet>
+
+      <ModalSheet visible={nutritionEditModal} onClose={() => setNutritionEditModal(false)} title="Beslenme planını düzenle" fullHeight>
+        <View style={styles.editorIntro}>
+          <MaterialCommunityIcons name="food-apple-outline" size={23} color={colors.accent} />
+          <View style={styles.flex}><AppText style={typography.bodyMedium}>Beslenme Editörü</AppText><AppText style={styles.muted}>Kaydettiğinde öğrencinin planı ortak sistemde güncellenir.</AppText></View>
+        </View>
+        {editingNutrition ? (
+          <>
+            <Card style={styles.nutritionEditorHeader}>
+              <TextField label="Plan adı" value={editingNutrition.title} onChangeText={(title) => setEditingNutrition((current) => current ? { ...current, title } : current)} placeholder="Örn. Dengeli Beslenme" />
+              <TextField label="Günlük su hedefi (litre)" value={`${editingNutrition.dailyWaterLiters}`} onChangeText={(value) => setEditingNutrition((current) => current ? { ...current, dailyWaterLiters: Number(value.replace(',', '.').replace(/[^0-9.]/g, '')) || 0 } : current)} keyboardType="decimal-pad" placeholder="2.5" />
+              <TextField label="Cem Hoca'nın plan notu" value={editingNutrition.note} onChangeText={(note) => setEditingNutrition((current) => current ? { ...current, note } : current)} multiline placeholder="Öğrencinin göreceği genel not" />
+            </Card>
+            {editingNutrition.meals.map((meal, index) => (
+              <Card key={meal.id} style={styles.exerciseEditorCard}>
+                <View style={styles.editorCardHeader}>
+                  <View style={styles.editorIndex}><AppText style={styles.editorIndexText}>{index + 1}</AppText></View>
+                  <AppText style={[typography.h3, styles.flex]}>{meal.title || 'Yeni öğün'}</AppText>
+                  <Button label="Kaldır" icon="trash-can-outline" compact variant="ghost" onPress={() => removeMeal(meal.id)} />
+                </View>
+                <View style={styles.mealEditorRow}>
+                  <TextField containerStyle={styles.mealTimeField} label="Saat" value={meal.time} onChangeText={(time) => changeMeal(meal.id, { time })} placeholder="09:30" keyboardType="numbers-and-punctuation" />
+                  <TextField containerStyle={styles.flex} label="Öğün başlığı" value={meal.title} onChangeText={(title) => changeMeal(meal.id, { title })} placeholder="Kahvaltı" />
+                </View>
+                <TextField label="İçerikler (her satıra bir ürün)" value={meal.items.join('\n')} onChangeText={(value) => changeMeal(meal.id, { items: value.split('\n') })} multiline placeholder={'Yumurta\nYulaf\nYoğurt'} />
+              </Card>
+            ))}
+          </>
+        ) : null}
+        {nutritionError ? <View style={styles.editorError}><MaterialCommunityIcons name="alert-circle-outline" size={19} color={colors.danger} /><AppText style={styles.editorErrorText}>{nutritionError}</AppText></View> : null}
+        <Button label="Yeni öğün ekle" icon="plus" variant="secondary" onPress={addMeal} />
+        <Button label="Beslenme planını kaydet" icon="content-save-check-outline" variant="accent" onPress={saveNutrition} />
       </ModalSheet>
 
       <ModalSheet visible={notesModal} onClose={() => setNotesModal(false)} title="PT notları">
@@ -375,6 +475,9 @@ const styles = StyleSheet.create({
   editorIndexText: { ...typography.bodyMedium, color: colors.graphite, fontWeight: '900' },
   editorFieldRow: { flexDirection: 'row', gap: spacing.sm },
   editorField: { flex: 1 },
+  nutritionEditorHeader: { gap: spacing.md, backgroundColor: '#0E1411' },
+  mealEditorRow: { flexDirection: 'row', gap: spacing.sm },
+  mealTimeField: { width: 96, minWidth: 0 },
   editorError: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: spacing.md },
   editorErrorText: { flex: 1, ...typography.caption, color: colors.danger },
 });

@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { AppText, Button, Card, Chip, EmptyState, ModalSheet, Page, SectionHeader, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
@@ -24,6 +24,7 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
   const [duration, setDuration] = useState(60);
   const [note, setNote] = useState('Birebir antrenman');
   const [error, setError] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
 
   const appointments = useMemo(
     () => (data?.appointments.filter((item) => item.studentId === student.id) ?? []).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
@@ -48,11 +49,12 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
     setModalOpen(false);
   };
 
-  const cancelAppointment = (id: string) => {
-    Alert.alert('Ders talebi iptal edilsin mi?', 'Cem Hoca takviminde de iptal olarak görünecek.', [
-      { text: 'Vazgeç', style: 'cancel' },
-      { text: 'İptal et', style: 'destructive', onPress: () => updateAppointmentStatus(id, 'cancelled') },
-    ]);
+  const cancelAppointment = (appointment: Appointment) => setCancelTarget(appointment);
+
+  const applyCancellation = () => {
+    if (!cancelTarget) return;
+    updateAppointmentStatus(cancelTarget.id, 'cancelled');
+    setCancelTarget(null);
   };
 
   return (
@@ -81,7 +83,7 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
         <View style={styles.sectionBlock}>
           <SectionHeader title="Yaklaşan dersler" />
           {upcoming.length ? upcoming.map((appointment) => (
-            <AppointmentCard key={appointment.id} appointment={appointment} onCancel={() => cancelAppointment(appointment.id)} />
+            <AppointmentCard key={appointment.id} appointment={appointment} onCancel={() => cancelAppointment(appointment)} />
           )) : <Card><EmptyState icon="calendar-blank-outline" title="Yaklaşan ders yok" description="Cem Hoca’dan uygun bir zaman istemek için yeni ders talebi oluşturabilirsin." /></Card>}
         </View>
 
@@ -107,6 +109,16 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
         <TextField label="Not" value={note} onChangeText={setNote} placeholder="Ders odağı veya kısa not" multiline />
         {error ? <AppText style={styles.error}>{error}</AppText> : null}
         <Button label="Talebi gönder" icon="send-outline" onPress={requestAppointment} />
+      </ModalSheet>
+
+      <ModalSheet visible={Boolean(cancelTarget)} onClose={() => setCancelTarget(null)} title="Dersi iptal et">
+        <View style={styles.confirmIcon}><MaterialCommunityIcons name="calendar-remove-outline" size={30} color={colors.danger} /></View>
+        <AppText style={typography.h3}>Bu ders {cancelTarget?.status === 'pending' ? 'talebi' : 'kaydı'} iptal edilsin mi?</AppText>
+        <AppText style={styles.confirmCopy}>İşlem Cem Hoca’nın takvimine de yansıyacak ve ders geçmiş bölümünde görünecek.</AppText>
+        <View style={styles.confirmActions}>
+          <Button label="Vazgeç" variant="secondary" onPress={() => setCancelTarget(null)} style={styles.confirmButton} />
+          <Button label="Dersi iptal et" icon="close" variant="danger" onPress={applyCancellation} style={styles.confirmButton} />
+        </View>
       </ModalSheet>
     </View>
   );
@@ -158,6 +170,10 @@ const styles = StyleSheet.create({
   muted: { ...typography.caption, color: colors.inkSoft },
   cancelButton: { alignSelf: 'flex-start', marginTop: spacing.md, paddingVertical: 5 },
   cancelText: { ...typography.caption, color: colors.danger, fontWeight: '700' },
+  confirmIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center' },
+  confirmCopy: { color: colors.inkSoft },
+  confirmActions: { flexDirection: 'row', gap: spacing.sm },
+  confirmButton: { flex: 1 },
   coachBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primaryLight },
   coachIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   durationBlock: { gap: spacing.sm },
@@ -165,4 +181,3 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', gap: spacing.sm },
   error: { ...typography.caption, color: colors.danger, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radius.md },
 });
-

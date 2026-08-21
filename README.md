@@ -28,9 +28,7 @@ Cem Arslanoğlu için geliştirilmiş tek PT’li, mobil-first fitness takip uyg
 - Ders ekleme, talep onaylama, tamamlama ve iptal
 - Öğrenci bazlı mesaj kutusu
 
-## Demo hesapları
-
-Giriş ekranındaki hızlı demo kartları şifre yazmadan bu hesapları açar.
+## Başlangıç hesapları
 
 | Rol | E-posta | Şifre |
 |---|---|---|
@@ -68,14 +66,16 @@ Bu teslimde TypeScript kontrolü, Expo Doctor (`21/21`) ve iOS Hermes bundle ür
 
 ## Veri modu
 
-MVP şu an **yerel demo adaptörü** ile çalışır:
+Web sürümü VPS üzerindeki ortak sunucu adaptörüyle çalışır:
 
-- Uygulama verisi AsyncStorage’da tutulur.
-- Oturum anahtarı iOS/Android’de SecureStore’da tutulur.
-- Demo parolaları düz metin saklanmaz; tuzlanmış özetleri tutulur.
-- Veri yalnızca aynı cihazdaki öğrenci/PT demo oturumları arasında görünür.
+- Hesaplar ve uygulama verileri tüm cihazlarda ortak görünür.
+- Aynı e-posta adresiyle ikinci kez kayıt oluşturulamaz.
+- Parolalar sunucuda tuzlanmış özet olarak saklanır; istemciye gönderilmez.
+- Oturum belirteci cihazda güvenli biçimde saklanır ve kullanıcı açıkça çıkış yapana kadar geçerlidir.
+- Cem Hoca paneli açıkken yeni veriler düzenli olarak yenilenir.
+- Önceki yerel sürümde oluşturulan hesaplar ilk başarılı girişte ortak sunucuya aktarılır.
 
-Bu mod ürün demosu ve kullanıcı akışı doğrulaması içindir. Gerçek öğrencilerin verileriyle App Store dağıtımı yapmadan önce çok cihazlı sunucu adaptörü, güvenli dosya depolama ve sunucu tarafı hesap silme devreye alınmalıdır. Hedef üretim yapısı [Mimari ve üretime geçiş](./docs/ARCHITECTURE.md) belgesinde tanımlıdır.
+Gelişim fotoğrafları için sonraki üretim adımı özel nesne depolama alanına geçiştir. Hedef App Store yapısı [Mimari ve üretime geçiş](./docs/ARCHITECTURE.md) belgesinde tanımlıdır.
 
 ## iOS dağıtımı
 

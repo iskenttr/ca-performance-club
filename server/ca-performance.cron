@@ -1,0 +1,1 @@
+@reboot CA_APP_ROOT=/home/canadmin/apps/ca-performance-club nohup python3 /home/canadmin/apps/ca-performance-club/server/ca_server.py >/home/canadmin/apps/ca-performance-club/server.log 2>&1 &

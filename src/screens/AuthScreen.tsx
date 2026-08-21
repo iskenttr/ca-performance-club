@@ -8,12 +8,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_NAME, APP_TAGLINE, colors, radius, spacing, typography } from '../constants';
 import { useApp } from '../context/AppContext';
-import { demoAccounts } from '../data/seed';
 import { Student } from '../types/domain';
 import { AppText, Button, Chip, TextField } from '../components/ui';
 
@@ -23,7 +23,9 @@ const goals = ['Yağ kaybı & sıkılaşma', 'Kas kazanımı', 'Kuvvet kazanım�
 const levels: Student['level'][] = ['Başlangıç', 'Orta', 'İleri'];
 
 export const AuthScreen = () => {
-  const { signIn, register, demoSignIn } = useApp();
+  const { signIn, register } = useApp();
+  const { height, width } = useWindowDimensions();
+  const compact = height < 760 || width < 380;
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,18 +59,6 @@ export const AuthScreen = () => {
     }
   };
 
-  const useDemo = async (role: 'student' | 'trainer') => {
-    setError('');
-    setLoading(true);
-    try {
-      await demoSignIn(role);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Demo açılamadı.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const switchMode = (next: Mode) => {
     setMode(next);
     setError('');
@@ -82,20 +72,20 @@ export const AuthScreen = () => {
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, mode === 'login' && styles.loginScrollContent]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.hero}>
+            <View style={[styles.hero, mode === 'login' && styles.loginHero, compact && styles.compactHero]}>
               <View style={styles.logoRow}>
                 <View style={styles.logoMark}><AppText style={styles.logoMarkText}>CA</AppText></View>
                 <AppText style={styles.logoName}>{APP_NAME}</AppText>
               </View>
-              <AppText style={styles.heroTitle}>Hedefin belli.{'\n'}Planın hazır.</AppText>
-              <AppText style={styles.heroSubtitle}>{APP_TAGLINE} Cem Arslanoğlu ile birebir takip.</AppText>
+              {!compact || mode === 'register' ? <AppText style={[styles.heroTitle, mode === 'login' && styles.loginHeroTitle]}>Hedefin belli.{'\n'}Planın hazır.</AppText> : null}
+              <AppText style={[styles.heroSubtitle, compact && styles.compactSubtitle]}>{APP_TAGLINE} Cem Arslanoğlu ile birebir takip.</AppText>
             </View>
 
-            <View style={styles.formSheet}>
+            <View style={[styles.formSheet, mode === 'login' && styles.loginSheet, compact && mode === 'login' && styles.compactLoginSheet]}>
               <View style={styles.modeSwitch}>
                 <Pressable onPress={() => switchMode('login')} style={[styles.modeButton, mode === 'login' && styles.modeButtonActive]}>
                   <AppText style={[styles.modeText, mode === 'login' && styles.modeTextActive]}>Giriş yap</AppText>
@@ -177,30 +167,6 @@ export const AuthScreen = () => {
 
               <Button label={mode === 'login' ? 'Giriş yap' : 'Hesabımı oluştur'} onPress={submit} loading={loading} icon={mode === 'login' ? 'arrow-right' : 'account-plus-outline'} />
 
-              {mode === 'login' ? (
-                <View style={styles.demoArea}>
-                  <View style={styles.orRow}><View style={styles.orLine} /><AppText style={styles.orText}>Hızlı demo</AppText><View style={styles.orLine} /></View>
-                  <View style={styles.demoButtons}>
-                    <Pressable disabled={loading} onPress={() => useDemo('student')} style={({ pressed }) => [styles.demoCard, pressed && styles.pressed]}>
-                      <View style={styles.demoIcon}><MaterialCommunityIcons name="weight-lifter" size={22} color={colors.primary} /></View>
-                      <View style={styles.flex}>
-                        <AppText style={typography.bodyMedium}>Öğrenci olarak</AppText>
-                        <AppText style={styles.demoEmail}>{demoAccounts.student.email}</AppText>
-                      </View>
-                      <MaterialCommunityIcons name="chevron-right" size={22} color={colors.inkSoft} />
-                    </Pressable>
-                    <Pressable disabled={loading} onPress={() => useDemo('trainer')} style={({ pressed }) => [styles.demoCard, pressed && styles.pressed]}>
-                      <View style={[styles.demoIcon, styles.demoIconTrainer]}><MaterialCommunityIcons name="whistle-outline" size={22} color={colors.primary} /></View>
-                      <View style={styles.flex}>
-                        <AppText style={typography.bodyMedium}>Cem Hoca olarak</AppText>
-                        <AppText style={styles.demoEmail}>{demoAccounts.trainer.email}</AppText>
-                      </View>
-                      <MaterialCommunityIcons name="chevron-right" size={22} color={colors.inkSoft} />
-                    </Pressable>
-                  </View>
-                </View>
-              ) : null}
-
               <AppText style={styles.legal}>Devam ederek Kullanım Koşulları’nı ve Gizlilik Politikası’nı kabul etmiş olursun.</AppText>
             </View>
           </ScrollView>
@@ -211,19 +177,26 @@ export const AuthScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.graphite },
+  root: { flex: 1, width: '100%', minWidth: 0, backgroundColor: colors.graphite },
   backgroundImage: {},
   safeArea: { flex: 1 },
   flex: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingTop: spacing.xl },
-  hero: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.lg, minHeight: 330, justifyContent: 'flex-end' },
+  scrollContent: { flexGrow: 1, width: '100%', minWidth: 0, paddingTop: spacing.xl },
+  loginScrollContent: { paddingTop: 0, justifyContent: 'flex-end' },
+  hero: { width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.lg, minHeight: 330, justifyContent: 'flex-end' },
+  loginHero: { minHeight: 245, paddingBottom: spacing.xl, gap: spacing.sm },
+  compactHero: { minHeight: 150, paddingTop: spacing.md, paddingBottom: spacing.md, gap: spacing.sm },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   logoMark: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   logoMarkText: { color: colors.primary, fontSize: 17, fontWeight: '900' },
   logoName: { color: colors.white, fontSize: 18, fontWeight: '900', letterSpacing: 0.2 },
   heroTitle: { color: colors.white, fontSize: 45, lineHeight: 47, fontWeight: '900', letterSpacing: -1.8, marginTop: spacing.md },
+  loginHeroTitle: { fontSize: 36, lineHeight: 38 },
   heroSubtitle: { color: '#C5D5D0', fontSize: 16, lineHeight: 23, maxWidth: 360 },
-  formSheet: { flex: 1, backgroundColor: 'rgba(8,11,10,0.98)', borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: colors.border, padding: spacing.xl, paddingBottom: 42, gap: spacing.lg },
+  compactSubtitle: { fontSize: 13, lineHeight: 18 },
+  formSheet: { flex: 1, width: '100%', maxWidth: 560, minWidth: 0, alignSelf: 'center', backgroundColor: 'rgba(8,11,10,0.98)', borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: colors.border, padding: spacing.xl, paddingBottom: 42, gap: spacing.lg },
+  loginSheet: { flex: 0, flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 465 },
+  compactLoginSheet: { minHeight: 0, paddingTop: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
   modeSwitch: { flexDirection: 'row', padding: 4, backgroundColor: colors.surfaceMuted, borderRadius: radius.md },
   modeButton: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 42, borderRadius: radius.sm },
   modeButtonActive: { backgroundColor: colors.surface },

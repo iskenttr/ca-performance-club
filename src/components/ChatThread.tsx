@@ -134,9 +134,8 @@ const styles = StyleSheet.create({
   timeTextMine: { color: '#BDD0CA' },
   composerWrap: { padding: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.cream, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   composer: { minHeight: 50, maxHeight: 120, flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: 25, borderWidth: 1, borderColor: colors.border, paddingLeft: spacing.lg, paddingRight: 5, paddingVertical: 5 },
-  composerInput: { flex: 1, minHeight: 38, maxHeight: 100, color: colors.ink, fontSize: 15, lineHeight: 20, paddingTop: 9, paddingBottom: 7 },
+  composerInput: { flex: 1, minWidth: 0, minHeight: 38, maxHeight: 100, color: colors.ink, fontSize: Platform.OS === 'web' ? 16 : 15, lineHeight: 20, paddingTop: 9, paddingBottom: 7 },
   sendButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   sendButtonDisabled: { opacity: 0.35 },
   pressed: { opacity: 0.72 },
 });
-

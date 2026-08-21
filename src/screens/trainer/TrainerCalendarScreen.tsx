@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { AppText, Avatar, Button, Card, Chip, EmptyState, ModalSheet, Page, SegmentedControl, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
@@ -21,6 +21,7 @@ export const TrainerCalendarScreen = ({ onProfile, prefillStudentId }: { onProfi
   const [duration, setDuration] = useState(60);
   const [note, setNote] = useState('Birebir antrenman');
   const [error, setError] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const now = new Date();
   const allAppointments = useMemo(
     () => [...(data?.appointments ?? [])].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
@@ -46,10 +47,14 @@ export const TrainerCalendarScreen = ({ onProfile, prefillStudentId }: { onProfi
     setModalOpen(false);
   };
 
-  const confirmCancel = (id: string) => Alert.alert('Ders iptal edilsin mi?', 'Öğrencinin takviminde de iptal olarak görünecek.', [
-    { text: 'Vazgeç', style: 'cancel' },
-    { text: 'İptal et', style: 'destructive', onPress: () => updateAppointmentStatus(id, 'cancelled') },
-  ]);
+  const confirmCancel = (appointment: Appointment) => setCancelTarget(appointment);
+
+  const applyCancellation = () => {
+    if (!cancelTarget) return;
+    updateAppointmentStatus(cancelTarget.id, 'cancelled');
+    setCancelTarget(null);
+    setFilter('history');
+  };
 
   return (
     <View style={styles.root}>
@@ -83,9 +88,9 @@ export const TrainerCalendarScreen = ({ onProfile, prefillStudentId }: { onProfi
                     <View style={styles.lessonTop}><View style={styles.studentInline}><Avatar name={student?.fullName ?? 'Öğrenci'} size={32} /><AppText style={typography.bodyMedium}>{student?.fullName ?? 'Silinmiş öğrenci'}</AppText></View><Chip label={appointment.status === 'pending' ? 'Talep' : appointment.status === 'confirmed' ? 'Onaylı' : appointment.status === 'completed' ? 'Tamamlandı' : 'İptal'} tone={appointment.status === 'pending' ? 'warning' : appointment.status === 'confirmed' ? 'success' : appointment.status === 'cancelled' ? 'danger' : 'default'} /></View>
                     <AppText style={styles.lessonNote}>{appointment.note}</AppText>
                     {appointment.status === 'pending' ? (
-                      <View style={styles.actionRow}><Button label="Onayla" icon="check" compact variant="accent" onPress={() => updateAppointmentStatus(appointment.id, 'confirmed')} style={styles.actionButton} /><Button label="Reddet" compact variant="secondary" onPress={() => confirmCancel(appointment.id)} style={styles.actionButton} /></View>
+                      <View style={styles.actionRow}><Button label="Onayla" icon="check" compact variant="accent" onPress={() => updateAppointmentStatus(appointment.id, 'confirmed')} style={styles.actionButton} /><Button label="Reddet" compact variant="secondary" onPress={() => confirmCancel(appointment)} style={styles.actionButton} /></View>
                     ) : appointment.status === 'confirmed' ? (
-                      <View style={styles.actionRow}><Button label="Tamamlandı" icon="check-circle-outline" compact variant="secondary" onPress={() => updateAppointmentStatus(appointment.id, 'completed')} style={styles.actionButton} /><Pressable onPress={() => confirmCancel(appointment.id)} style={styles.textAction}><AppText style={styles.cancelText}>İptal</AppText></Pressable></View>
+                      <View style={styles.actionRow}><Button label="Tamamlandı" icon="check-circle-outline" compact variant="secondary" onPress={() => updateAppointmentStatus(appointment.id, 'completed')} style={styles.actionButton} /><Pressable onPress={() => confirmCancel(appointment)} style={styles.textAction}><AppText style={styles.cancelText}>İptal</AppText></Pressable></View>
                     ) : null}
                   </View>
                 </Card>
@@ -103,6 +108,16 @@ export const TrainerCalendarScreen = ({ onProfile, prefillStudentId }: { onProfi
         <TextField label="Ders notu" value={note} onChangeText={setNote} multiline placeholder="Ders odağı" />
         {error ? <AppText style={styles.error}>{error}</AppText> : null}
         <Button label="Dersi takvime ekle" icon="calendar-check" onPress={saveAppointment} />
+      </ModalSheet>
+
+      <ModalSheet visible={Boolean(cancelTarget)} onClose={() => setCancelTarget(null)} title={cancelTarget?.status === 'pending' ? 'Talebi reddet' : 'Dersi iptal et'}>
+        <View style={styles.confirmIcon}><MaterialCommunityIcons name={cancelTarget?.status === 'pending' ? 'calendar-remove-outline' : 'calendar-alert'} size={30} color={colors.danger} /></View>
+        <AppText style={typography.h3}>{cancelTarget?.status === 'pending' ? 'Bu ders talebi reddedilsin mi?' : 'Bu ders iptal edilsin mi?'}</AppText>
+        <AppText style={styles.confirmCopy}>İşlem öğrencinin takvimine de yansıyacak ve ders geçmiş bölümüne taşınacak.</AppText>
+        <View style={styles.confirmActions}>
+          <Button label="Vazgeç" variant="secondary" onPress={() => setCancelTarget(null)} style={styles.actionButton} />
+          <Button label={cancelTarget?.status === 'pending' ? 'Talebi reddet' : 'Dersi iptal et'} icon="close" variant="danger" onPress={applyCancellation} style={styles.actionButton} />
+        </View>
       </ModalSheet>
     </View>
   );
@@ -140,6 +155,9 @@ const styles = StyleSheet.create({
   actionButton: { flex: 1 },
   textAction: { padding: spacing.sm },
   cancelText: { ...typography.caption, color: colors.danger, fontWeight: '700' },
+  confirmIcon: { width: 58, height: 58, borderRadius: 19, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center' },
+  confirmCopy: { color: colors.inkSoft },
+  confirmActions: { flexDirection: 'row', gap: spacing.sm },
   fieldBlock: { gap: spacing.sm },
   fieldLabel: { ...typography.caption, color: colors.inkSoft },
   studentChoices: { gap: spacing.sm },

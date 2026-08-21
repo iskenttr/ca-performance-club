@@ -1,15 +1,57 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
+import { ExerciseLibrary } from '../../components/ExerciseLibrary';
 import { AppText, Card, Chip, EmptyState, Page, SegmentedControl } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
-import { Student } from '../../types/domain';
+import { Exercise, Student } from '../../types/domain';
 import { formatShortDate, toDateInput } from '../../utils/date';
 
 type ProgramView = 'workout' | 'nutrition';
+
+type MuscleGroup = 'chest' | 'shoulders' | 'arms' | 'back' | 'core' | 'glutes' | 'quads' | 'hamstrings' | 'calves';
+
+const muscleMeta: Record<MuscleGroup, { label: string; points: Array<{ top: `${number}%`; left: `${number}%` }> }> = {
+  chest: { label: 'Göğüs', points: [{ top: '25%', left: '51%' }] },
+  shoulders: { label: 'Omuz', points: [{ top: '22%', left: '40%' }, { top: '22%', left: '61%' }] },
+  arms: { label: 'Kol', points: [{ top: '34%', left: '37%' }, { top: '34%', left: '65%' }] },
+  back: { label: 'Sırt', points: [{ top: '30%', left: '50%' }] },
+  core: { label: 'Core', points: [{ top: '39%', left: '50%' }] },
+  glutes: { label: 'Kalça', points: [{ top: '48%', left: '51%' }] },
+  quads: { label: 'Ön bacak', points: [{ top: '57%', left: '45%' }, { top: '57%', left: '56%' }] },
+  hamstrings: { label: 'Arka bacak', points: [{ top: '61%', left: '51%' }] },
+  calves: { label: 'Baldır', points: [{ top: '72%', left: '45%' }, { top: '72%', left: '57%' }] },
+};
+
+const exerciseMuscles = (exercise: Exercise): MuscleGroup[] => {
+  const name = exercise.name.toLocaleLowerCase('en-US');
+  const groups = new Set<MuscleGroup>();
+  const add = (...items: MuscleGroup[]) => items.forEach((item) => groups.add(item));
+
+  if (/squat|lunge|leg press|step-up/.test(name)) add('quads', 'glutes', 'core');
+  if (/deadlift|leg curl/.test(name)) add('hamstrings', 'glutes', 'back', 'core');
+  if (/bridge|hip thrust/.test(name)) add('glutes', 'hamstrings');
+  if (/bench|push-up|chest/.test(name)) add('chest', 'shoulders', 'arms');
+  if (/row|pulldown|pull-up|face pull/.test(name)) add('back', 'arms', 'shoulders');
+  if (/shoulder press|overhead press/.test(name)) add('shoulders', 'arms', 'core');
+  if (/curl|triceps|farmer carry|battle rope/.test(name)) add('arms', 'shoulders', 'core');
+  if (/plank|dead bug/.test(name)) add('core');
+  if (/calf/.test(name)) add('calves');
+  if (/mobility/.test(name)) add('core', 'glutes');
+  return [...groups];
+};
+
+const buildMuscleLoad = (exercises: Exercise[]) => {
+  const counts = new Map<MuscleGroup, number>();
+  exercises.forEach((exercise) => exerciseMuscles(exercise).forEach((group) => counts.set(group, (counts.get(group) ?? 0) + 1)));
+  const max = Math.max(...counts.values(), 1);
+  return [...counts.entries()]
+    .map(([group, count]) => ({ group, count, intensity: Math.round((count / max) * 100) }))
+    .sort((a, b) => b.count - a.count);
+};
 
 export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
   const { data, user, toggleExercise } = useApp();
@@ -25,6 +67,7 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
     [data?.workoutCompletions, student.id, today],
   );
   const completedCount = selectedDay?.exercises.filter((item) => completedIds.has(item.id)).length ?? 0;
+  const muscleLoad = useMemo(() => buildMuscleLoad(selectedDay?.exercises ?? []), [selectedDay?.exercises]);
 
   return (
     <View style={styles.root}>
@@ -84,6 +127,49 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
                     </View>
                     <Chip label={`${completedCount}/${selectedDay.exercises.length}`} tone={completedCount === selectedDay.exercises.length ? 'success' : 'info'} />
                   </View>
+                  <Card style={styles.muscleCard}>
+                    <View style={styles.muscleHeader}>
+                      <View style={styles.muscleHeaderCopy}>
+                        <AppText style={styles.muscleEyebrow}>KAS AKTİVASYON HARİTASI</AppText>
+                        <AppText style={typography.h2}>Bugün nereler çalışıyor?</AppText>
+                      </View>
+                      <View style={styles.livePill}><View style={styles.liveDot} /><AppText style={styles.liveText}>PROGRAMA GÖRE</AppText></View>
+                    </View>
+                    <View style={styles.bodyMap}>
+                      <Image source={require('../../../assets/premium/body-progress-scan.png')} style={styles.bodyMapImage} resizeMode="contain" />
+                      <LinearGradient pointerEvents="none" colors={['rgba(7,10,8,0)', 'rgba(7,10,8,0.04)', 'rgba(7,10,8,0.64)']} style={StyleSheet.absoluteFill} />
+                      {muscleLoad.flatMap((item) => muscleMeta[item.group].points.map((point, pointIndex) => (
+                        <View
+                          key={`${item.group}-${pointIndex}`}
+                          style={[
+                            styles.muscleSpot,
+                            point,
+                            { opacity: 0.55 + item.intensity / 240, transform: [{ translateX: -10 }, { translateY: -10 }, { scale: 0.88 + item.intensity / 500 }] },
+                          ]}
+                        >
+                          <View style={styles.muscleSpotCore} />
+                        </View>
+                      )))}
+                      <View style={styles.bodyMapCaption}>
+                        <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.accent} />
+                        <AppText style={styles.bodyMapCaptionText}>Parlak bölgeler bu antrenmanda daha fazla yük alır.</AppText>
+                      </View>
+                    </View>
+                    <View style={styles.muscleLegend}>
+                      {muscleLoad.map((item) => (
+                        <View key={item.group} style={styles.muscleChip}>
+                          <View style={[styles.muscleChipBar, { opacity: 0.45 + item.intensity / 180 }]} />
+                          <View style={styles.flex}><AppText style={styles.muscleChipLabel}>{muscleMeta[item.group].label}</AppText><AppText style={styles.muscleChipDetail}>{item.count} hareket · %{item.intensity} yoğunluk</AppText></View>
+                        </View>
+                      ))}
+                    </View>
+                    <AppText style={styles.muscleDisclaimer}>Gösterim, programdaki hareket adlarına göre hazırlanır; tıbbi kas analizi değildir.</AppText>
+                  </Card>
+                  <ExerciseLibrary
+                    names={program.days.flatMap((programDay) =>
+                      programDay.exercises.map((exercise) => exercise.name),
+                    )}
+                  />
                   <View style={styles.exerciseList}>
                     {selectedDay.exercises.map((exercise, index) => {
                       const completed = completedIds.has(exercise.id);
@@ -199,6 +285,25 @@ const styles = StyleSheet.create({
   workoutBlock: { gap: spacing.md },
   workoutHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   workoutFocus: { color: colors.inkSoft, marginTop: 2 },
+  muscleCard: { padding: 0, overflow: 'hidden', backgroundColor: '#090D0B', borderColor: '#304035' },
+  muscleHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, padding: spacing.lg, paddingBottom: spacing.md, maxWidth: '100%' },
+  muscleHeaderCopy: { flex: 1, minWidth: 0 },
+  muscleEyebrow: { ...typography.label, color: colors.accent, letterSpacing: 1.2, marginBottom: 3 },
+  livePill: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.primaryLight },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
+  liveText: { fontSize: 8, lineHeight: 10, fontWeight: '800', color: colors.primary },
+  bodyMap: { width: '100%', height: 460, position: 'relative', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: '#040706' },
+  bodyMapImage: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.92 },
+  muscleSpot: { position: 'absolute', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(215,255,69,0.2)', borderWidth: 1, borderColor: 'rgba(215,255,69,0.95)', shadowColor: colors.accent, shadowOpacity: 0.9, shadowRadius: 10, elevation: 7 },
+  muscleSpotCore: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
+  bodyMapCaption: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, margin: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, backgroundColor: 'rgba(5,9,7,0.82)' },
+  bodyMapCaptionText: { flex: 1, ...typography.caption, color: '#D8E2DD' },
+  muscleLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.md },
+  muscleChip: { width: '47%', minWidth: 0, flexGrow: 1, minHeight: 55, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.surface },
+  muscleChipBar: { width: 4, alignSelf: 'stretch', borderRadius: radius.pill, backgroundColor: colors.accent },
+  muscleChipLabel: { ...typography.caption, color: colors.ink, fontWeight: '800' },
+  muscleChipDetail: { fontSize: 9, lineHeight: 12, color: colors.inkSoft },
+  muscleDisclaimer: { ...typography.caption, color: colors.inkSoft, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
   exerciseList: { gap: spacing.sm },
   exerciseCard: { flexDirection: 'row', gap: spacing.md, alignItems: 'center', padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: 'transparent' },
   exerciseCardCompleted: { backgroundColor: colors.successSoft, borderColor: '#285846' },

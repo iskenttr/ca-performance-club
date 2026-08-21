@@ -1,8 +1,11 @@
 import {
+  configureBackgroundTypes,
   isHealthDataAvailable,
   queryStatisticsForQuantity,
   queryWorkoutSamples,
   requestAuthorization,
+  subscribeToChanges,
+  UpdateFrequency,
 } from '@kingstinct/react-native-healthkit';
 import type { AppleHealthSnapshot } from './appleHealth';
 
@@ -22,6 +25,24 @@ const startOfToday = () => {
 export const isAppleHealthAvailable = async () => isHealthDataAvailable();
 
 export const requestAppleHealthAccess = async () => requestAuthorization({ toRead: readTypes });
+
+export const configureAppleHealthBackgroundUpdates = async () =>
+  configureBackgroundTypes([...readTypes], UpdateFrequency.immediate);
+
+export const subscribeToAppleHealthChanges = (onChange: () => void) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const subscriptions = readTypes.map((type) =>
+    subscribeToChanges(type, ({ errorMessage }) => {
+      if (errorMessage) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(onChange, 750);
+    }),
+  );
+  return () => {
+    if (timer) clearTimeout(timer);
+    subscriptions.forEach((subscription) => subscription.remove());
+  };
+};
 
 export const readAppleHealthSnapshot = async (): Promise<AppleHealthSnapshot> => {
   const startDate = startOfToday();

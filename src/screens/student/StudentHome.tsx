@@ -1,10 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { Alert, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
+import { ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { ActivityRings, ProgressRing, TrendChart } from '../../components/graphics';
-import { AppText, Avatar, Button, Card, Chip, Page, SectionHeader } from '../../components/ui';
+import { AppText, Avatar, Button, Card, Chip, ModalSheet, Page, SectionHeader } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { useAppleHealth } from '../../hooks/useAppleHealth';
@@ -15,6 +15,7 @@ import type { StudentRoute } from './StudentApp';
 export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) => void }) => {
   const { data, user } = useApp();
   const { status: healthStatus, snapshot: health, connect: connectHealth, refresh: refreshHealth } = useAppleHealth();
+  const [healthInfoOpen, setHealthInfoOpen] = useState(false);
   const student = user as Student;
   const program = data?.workoutPrograms.find((item) => item.studentId === student.id);
   const measurements = (data?.measurements.filter((item) => item.studentId === student.id) ?? []).sort(
@@ -36,7 +37,7 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
   const healthConnected = healthStatus === 'connected';
   const connectAppleHealth = async () => {
     if (healthStatus === 'unavailable') {
-      Alert.alert('iPhone gerekli', 'Apple Health bağlantısı gerçek bir iPhone’daki CA Performance Club geliştirme veya App Store sürümünde açılır.');
+      setHealthInfoOpen(true);
       return;
     }
     await connectHealth();
@@ -92,7 +93,7 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
           <View style={styles.appleHeader}>
             <View style={styles.appleBrand}>
               <View style={styles.appleIcon}><MaterialCommunityIcons name="apple" size={25} color={colors.white} /></View>
-              <View><AppText style={styles.appleEyebrow}>APPLE HEALTH</AppText><AppText style={styles.appleTitle}>Fitness verilerin</AppText></View>
+              <View><AppText style={styles.appleEyebrow}>APPLE FITNESS + HEALTH</AppText><AppText style={styles.appleTitle}>Fitness verilerin</AppText></View>
             </View>
             <Chip label={healthConnected ? 'BAĞLI' : 'HAZIR'} tone={healthConnected ? 'success' : 'default'} />
           </View>
@@ -168,6 +169,16 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
           <MaterialCommunityIcons name="chevron-right" size={24} color={colors.inkSoft} />
         </Card>
       </Page>
+      <ModalSheet visible={healthInfoOpen} onClose={() => setHealthInfoOpen(false)} title="Apple Fitness bağlantısı">
+        <View style={styles.healthModalIcon}><MaterialCommunityIcons name="apple" size={32} color={colors.white} /></View>
+        <AppText style={typography.h3}>Bağlantı iPhone uygulamasında hazır</AppText>
+        <AppText style={styles.applePrivacy}>Apple Sağlık verileri web sitelerine doğrudan açılmaz. CA Performance Club’ın iPhone sürümü kurulduğunda izin ekranı açılır; adım, aktif kalori, egzersiz süresi ve antrenman özeti cihazdan okunur.</AppText>
+        <Card style={styles.healthRequirement}>
+          <MaterialCommunityIcons name="shield-check-outline" size={22} color={colors.success} />
+          <View style={styles.flex}><AppText style={typography.bodyMedium}>Gizlilik odaklı</AppText><AppText style={styles.applePrivacy}>İzin vermediğin hiçbir sağlık verisi okunmaz.</AppText></View>
+        </Card>
+        <Button label="Anladım" variant="accent" onPress={() => setHealthInfoOpen(false)} />
+      </ModalSheet>
     </View>
   );
 };
@@ -217,6 +228,8 @@ const styles = StyleSheet.create({
   healthValue: { fontSize: 19, lineHeight: 21, fontWeight: '900', letterSpacing: -0.4 },
   healthLabel: { ...typography.caption, color: colors.inkSoft, marginTop: 1 },
   applePrivacy: { ...typography.caption, color: colors.inkSoft, lineHeight: 18 },
+  healthModalIcon: { width: 62, height: 62, borderRadius: 21, backgroundColor: colors.black, borderWidth: 1, borderColor: '#353A38', alignItems: 'center', justifyContent: 'center' },
+  healthRequirement: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.successSoft },
   statsRow: { flexDirection: 'row', gap: spacing.md },
   statCard: { flex: 1, gap: spacing.sm, padding: spacing.md },
   statIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -233,7 +246,7 @@ const styles = StyleSheet.create({
   appointmentNote: { ...typography.caption, color: colors.ink, marginTop: 3 },
   muted: { color: colors.inkSoft },
   moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  moduleCard: { width: '48%', flexGrow: 1, minHeight: 160, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.sm },
+  moduleCard: { width: '46%', minWidth: 0, flexGrow: 1, minHeight: 160, borderRadius: radius.lg, backgroundColor: colors.surface, padding: spacing.md, gap: spacing.sm },
   moduleIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   moduleTitle: { ...typography.bodyMedium },
   moduleSubtitle: { ...typography.caption, color: colors.inkSoft },
