@@ -137,7 +137,7 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
                 <View>
                   <AppText style={styles.summaryLabel}>Güncel kilo</AppText>
                   <AppText style={styles.summaryValue}>{latest ? latest.weightKg.toFixed(1) : '—'} <AppText style={styles.summaryUnit}>kg</AppText></AppText>
-                  {latestBodyFat != null ? <AppText style={styles.compositionMain}>{latest?.professionalBodyFatPercent != null ? 'Profesyonel yağ oranı' : 'Tahmini yağ oranı'}: %{latestBodyFat.toFixed(1)}</AppText> : null}
+                  {latestBodyFat != null ? <AppText style={styles.compositionMain}>{latest?.professionalBodyFatPercent != null ? 'Profesyonel yağ oranı' : latest?.rfmBodyFatPercent != null ? 'Tahmini yağ oranı' : 'Yağ oranı'}: %{latestBodyFat.toFixed(1)}</AppText> : null}
                   {latestMasses ? <AppText style={styles.compositionDetail}>Yağ kütlesi {latestMasses.fatMassKg.toFixed(1)} kg · Yağsız kütle {latestMasses.leanMassKg.toFixed(1)} kg</AppText> : null}
                   {latest?.waistCm ? <AppText style={styles.compositionDetail}>Bel: {latest.waistCm.toFixed(1)} cm</AppText> : null}
                 </View>
