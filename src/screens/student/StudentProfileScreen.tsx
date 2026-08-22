@@ -5,7 +5,7 @@ import { TopBar } from '../../components/AppFrame';
 import { AppText, Avatar, Button, Card, Chip, Divider, ModalSheet, Page, TextField } from '../../components/ui';
 import { APP_NAME, colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
-import { Student } from '../../types/domain';
+import { BiologicalSex, Student } from '../../types/domain';
 import { formatDate } from '../../utils/date';
 
 type Policy = 'privacy' | 'terms' | null;
@@ -18,6 +18,7 @@ export const StudentProfileScreen = ({ onBack }: { onBack: () => void }) => {
   const [fullName, setFullName] = useState(student.fullName);
   const [phone, setPhone] = useState(student.phone);
   const [height, setHeight] = useState(student.heightCm ? `${student.heightCm}` : '');
+  const [biologicalSex, setBiologicalSex] = useState<BiologicalSex | undefined>(student.biologicalSex);
   const [goal, setGoal] = useState(student.goal);
   const [weeklyGoal, setWeeklyGoal] = useState(student.weeklyGoal);
 
@@ -29,6 +30,7 @@ export const StudentProfileScreen = ({ onBack }: { onBack: () => void }) => {
       goal: goal.trim() || student.goal,
       weeklyGoal,
       heightCm: Number.isFinite(heightCm) && heightCm > 100 && heightCm < 240 ? heightCm : undefined,
+      biologicalSex,
     } as Partial<Student>);
     setEditOpen(false);
   };
@@ -83,6 +85,7 @@ export const StudentProfileScreen = ({ onBack }: { onBack: () => void }) => {
           <InfoCard icon="signal-cellular-2" label="Seviye" value={student.level} />
           <InfoCard icon="calendar-week" label="Haftalık" value={`${student.weeklyGoal} gün`} />
           <InfoCard icon="human-male-height" label="Boy" value={student.heightCm ? `${student.heightCm} cm` : 'Eklenmedi'} />
+          <InfoCard icon="gender-male-female" label="Cinsiyet" value={student.biologicalSex === 'male' ? 'Erkek' : student.biologicalSex === 'female' ? 'Kadın' : 'Eklenmedi'} />
         </View>
 
         <Card style={styles.settingsCard}>
@@ -112,6 +115,13 @@ export const StudentProfileScreen = ({ onBack }: { onBack: () => void }) => {
         <TextField label="Ad soyad" value={fullName} onChangeText={setFullName} autoCapitalize="words" />
         <TextField label="Telefon" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
         <TextField label="Boy (cm)" value={height} onChangeText={setHeight} keyboardType="number-pad" />
+        <View style={styles.weeklyBlock}>
+          <AppText style={styles.fieldLabel}>Cinsiyet (RFM hesaplaması için)</AppText>
+          <View style={styles.chipRow}>
+            <Chip label="Kadın" selected={biologicalSex === 'female'} onPress={() => setBiologicalSex('female')} />
+            <Chip label="Erkek" selected={biologicalSex === 'male'} onPress={() => setBiologicalSex('male')} />
+          </View>
+        </View>
         <TextField label="Hedef" value={goal} onChangeText={setGoal} multiline />
         <View style={styles.weeklyBlock}>
           <AppText style={styles.fieldLabel}>Haftalık antrenman hedefi</AppText>

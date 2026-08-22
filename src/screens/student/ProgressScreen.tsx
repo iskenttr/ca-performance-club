@@ -8,6 +8,7 @@ import { AppText, Button, Card, EmptyState, ModalSheet, Page, SectionHeader, Seg
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types/domain';
+import { bodyMassesForMeasurement, calculateBodyMasses, calculateRfmPercent, effectiveBodyFatPercent } from '../../utils/bodyComposition';
 import { formatDate, formatShortDate } from '../../utils/date';
 
 type ProgressView = 'report' | 'measurements' | 'photos';
@@ -24,11 +25,11 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
   const [measurementModal, setMeasurementModal] = useState(false);
   const [photoModal, setPhotoModal] = useState(false);
   const [weight, setWeight] = useState('');
-  const [bodyFat, setBodyFat] = useState('');
   const [waist, setWaist] = useState('');
   const [chest, setChest] = useState('');
   const [hip, setHip] = useState('');
   const [arm, setArm] = useState('');
+  const [leg, setLeg] = useState('');
   const [formError, setFormError] = useState('');
 
   const measurements = useMemo(
@@ -40,28 +41,50 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
     [data?.progressPhotos, student.id],
   );
   const latest = measurements.at(-1);
+  const latestBodyFat = effectiveBodyFatPercent(latest);
+  const latestMasses = bodyMassesForMeasurement(latest);
   const first = measurements[0];
   const delta = latest && first ? latest.weightKg - first.weightKg : 0;
-  const chartItems = measurements.slice(-6);
-  const chartWeights = chartItems.map((item) => item.weightKg);
-  const minWeight = chartWeights.length ? Math.min(...chartWeights) - 1 : 0;
-  const maxWeight = chartWeights.length ? Math.max(...chartWeights) + 1 : 1;
+  const chartItems = measurements.filter((item) => effectiveBodyFatPercent(item) != null).slice(-6);
+  const chartValues = chartItems.map((item) => effectiveBodyFatPercent(item) ?? 0);
+  const minChart = chartValues.length ? Math.min(...chartValues) - 1 : 0;
+  const maxChart = chartValues.length ? Math.max(...chartValues) + 1 : 1;
 
   const saveMeasurement = () => {
     const weightKg = parseNumber(weight);
+    const waistCm = parseNumber(waist);
     if (!weightKg || weightKg < 30 || weightKg > 300) {
       setFormError('Geçerli bir kilo değeri gir.');
       return;
     }
+    if (!student.heightCm || !student.biologicalSex) {
+      setFormError('RFM hesabı için önce profilinden boy ve cinsiyet bilgilerini tamamla.');
+      return;
+    }
+    if (!waistCm || waistCm < 40 || waistCm > 200) {
+      setFormError('Geçerli bir bel çevresi gir.');
+      return;
+    }
+    const rfmBodyFatPercent = calculateRfmPercent(student.heightCm, waistCm, student.biologicalSex);
+    if (rfmBodyFatPercent < 2 || rfmBodyFatPercent > 70) {
+      setFormError('Boy ve bel ölçülerini kontrol et; hesaplanan oran beklenen aralığın dışında.');
+      return;
+    }
+    const masses = calculateBodyMasses(weightKg, rfmBodyFatPercent);
     addMeasurement(student.id, {
       weightKg,
-      bodyFatPercent: parseNumber(bodyFat),
-      waistCm: parseNumber(waist),
+      bodyFatPercent: rfmBodyFatPercent,
+      rfmBodyFatPercent,
+      ...masses,
+      heightCmAtMeasurement: student.heightCm,
+      biologicalSexAtMeasurement: student.biologicalSex,
+      waistCm,
       chestCm: parseNumber(chest),
       hipCm: parseNumber(hip),
       armCm: parseNumber(arm),
+      legCm: parseNumber(leg),
     });
-    setWeight(''); setBodyFat(''); setWaist(''); setChest(''); setHip(''); setArm(''); setFormError('');
+    setWeight(''); setWaist(''); setChest(''); setHip(''); setArm(''); setLeg(''); setFormError('');
     setMeasurementModal(false);
   };
 
@@ -114,6 +137,9 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
                 <View>
                   <AppText style={styles.summaryLabel}>Güncel kilo</AppText>
                   <AppText style={styles.summaryValue}>{latest ? latest.weightKg.toFixed(1) : '—'} <AppText style={styles.summaryUnit}>kg</AppText></AppText>
+                  {latestBodyFat != null ? <AppText style={styles.compositionMain}>{latest?.professionalBodyFatPercent != null ? 'Profesyonel yağ oranı' : 'Tahmini yağ oranı'}: %{latestBodyFat.toFixed(1)}</AppText> : null}
+                  {latestMasses ? <AppText style={styles.compositionDetail}>Yağ kütlesi {latestMasses.fatMassKg.toFixed(1)} kg · Yağsız kütle {latestMasses.leanMassKg.toFixed(1)} kg</AppText> : null}
+                  {latest?.waistCm ? <AppText style={styles.compositionDetail}>Bel: {latest.waistCm.toFixed(1)} cm</AppText> : null}
                 </View>
                 <View style={[styles.deltaPill, delta > 0 ? styles.deltaUp : styles.deltaDown]}>
                   <MaterialCommunityIcons name={delta > 0 ? 'trending-up' : 'trending-down'} size={18} color={delta > 0 ? colors.warning : colors.success} />
@@ -123,25 +149,25 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
               {chartItems.length > 1 ? (
                 <View style={styles.chart}>
                   {chartItems.map((item, index) => {
-                    const height = 28 + ((item.weightKg - minWeight) / Math.max(maxWeight - minWeight, 1)) * 72;
                     const isLast = index === chartItems.length - 1;
                     return (
                       <View key={item.id} style={styles.chartColumn}>
-                        <AppText style={[styles.chartValue, isLast && styles.chartValueActive]}>{item.weightKg.toFixed(1)}</AppText>
-                        <View style={[styles.chartBar, { height }, isLast && styles.chartBarActive]} />
+                        <AppText style={[styles.chartValue, isLast && styles.chartValueActive]}>%{effectiveBodyFatPercent(item)?.toFixed(1)}</AppText>
+                        <View style={[styles.chartBar, { height: 28 + (((effectiveBodyFatPercent(item) ?? 0) - minChart) / Math.max(maxChart - minChart, 1)) * 72 }, isLast && styles.chartBarActive]} />
                         <AppText style={styles.chartDate}>{formatShortDate(item.date)}</AppText>
                       </View>
                     );
                   })}
                 </View>
               ) : (
-                <AppText style={styles.muted}>Grafik için en az iki ölçüm ekle.</AppText>
+                <AppText style={styles.muted}>Yağ oranı grafiği için en az iki ölçüm ekle.</AppText>
               )}
+              {latest?.rfmBodyFatPercent != null ? <AppText style={styles.rfmNote}>RFM yöntemiyle tahmini hesaplanmıştır.</AppText> : null}
             </Card>
 
             <View style={styles.metricsGrid}>
               <MetricCard icon="human-male-height" label="Boy" value={student.heightCm ? `${student.heightCm}` : '—'} unit="cm" color={colors.infoSoft} />
-              <MetricCard icon="percent-outline" label="Yağ oranı" value={latest?.bodyFatPercent?.toFixed(1) ?? '—'} unit="%" color={colors.warningSoft} />
+              <MetricCard icon="percent-outline" label="Yağ oranı" value={latestBodyFat?.toFixed(1) ?? '—'} unit="%" color={colors.warningSoft} />
               <MetricCard icon="tape-measure" label="Bel" value={latest?.waistCm?.toFixed(0) ?? '—'} unit="cm" color={colors.successSoft} />
               <MetricCard icon="human-handsup" label="Göğüs" value={latest?.chestCm?.toFixed(0) ?? '—'} unit="cm" color="#30251F" />
             </View>
@@ -159,7 +185,8 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
                   </View>
                   <View style={styles.historyRight}>
                     {measurement.waistCm ? <AppText style={styles.historyDetail}>Bel {measurement.waistCm} cm</AppText> : null}
-                    {measurement.bodyFatPercent ? <AppText style={styles.historyDetail}>Yağ %{measurement.bodyFatPercent}</AppText> : null}
+                    {measurement.professionalBodyFatPercent != null ? <AppText style={styles.historyDetail}>Profesyonel %{measurement.professionalBodyFatPercent.toFixed(1)}</AppText> : null}
+                    {measurement.rfmBodyFatPercent != null ? <AppText style={styles.historyDetail}>RFM %{measurement.rfmBodyFatPercent.toFixed(1)}</AppText> : measurement.bodyFatPercent != null ? <AppText style={styles.historyDetail}>Yağ %{measurement.bodyFatPercent.toFixed(1)}</AppText> : null}
                   </View>
                 </Card>
               ))}
@@ -189,18 +216,23 @@ export const ProgressScreen = ({ onProfile }: { onProfile: () => void }) => {
         )}
       </Page>
 
-      <ModalSheet visible={measurementModal} onClose={() => setMeasurementModal(false)} title="Yeni ölçüm">
+      <ModalSheet visible={measurementModal} onClose={() => setMeasurementModal(false)} title="Yeni ölçüm" fullHeight>
         <View style={styles.modalIntro}><MaterialCommunityIcons name="information-outline" size={20} color={colors.info} /><AppText style={styles.modalIntroText}>En iyi karşılaştırma için benzer saatlerde ve benzer koşullarda ölçüm yap.</AppText></View>
+        <Card style={styles.profileMeasureCard}>
+          <View style={styles.flex}><AppText style={styles.summaryLabel}>PROFİLDEN OTOMATİK</AppText><AppText style={typography.bodyMedium}>Boy: {student.heightCm ? `${student.heightCm} cm` : 'Eksik'} · Cinsiyet: {student.biologicalSex === 'male' ? 'Erkek' : student.biologicalSex === 'female' ? 'Kadın' : 'Eksik'}</AppText></View>
+          {(!student.heightCm || !student.biologicalSex) ? <Button label="Profili tamamla" compact variant="secondary" onPress={() => { setMeasurementModal(false); onProfile(); }} /> : null}
+        </Card>
         <TextField label="Kilo (kg) *" value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="Örn. 69,5" error={formError} />
-        <View style={styles.fieldRow}>
-          <TextField containerStyle={styles.fieldHalf} label="Yağ oranı (%)" value={bodyFat} onChangeText={setBodyFat} keyboardType="decimal-pad" placeholder="26,0" />
-          <TextField containerStyle={styles.fieldHalf} label="Bel (cm)" value={waist} onChangeText={setWaist} keyboardType="decimal-pad" placeholder="78" />
-        </View>
+        <TextField label="Bel çevresi (cm) *" value={waist} onChangeText={setWaist} keyboardType="decimal-pad" placeholder="Örn. 86" />
         <View style={styles.fieldRow}>
           <TextField containerStyle={styles.fieldHalf} label="Göğüs (cm)" value={chest} onChangeText={setChest} keyboardType="decimal-pad" placeholder="89" />
           <TextField containerStyle={styles.fieldHalf} label="Kalça (cm)" value={hip} onChangeText={setHip} keyboardType="decimal-pad" placeholder="100" />
         </View>
-        <TextField label="Kol (cm)" value={arm} onChangeText={setArm} keyboardType="decimal-pad" placeholder="31" />
+        <View style={styles.fieldRow}>
+          <TextField containerStyle={styles.fieldHalf} label="Kol (cm)" value={arm} onChangeText={setArm} keyboardType="decimal-pad" placeholder="31" />
+          <TextField containerStyle={styles.fieldHalf} label="Bacak (cm)" value={leg} onChangeText={setLeg} keyboardType="decimal-pad" placeholder="56" />
+        </View>
+        <AppText style={styles.rfmNote}>Yağ oranı kilo, bel, boy ve cinsiyet bilgilerin kullanılarak RFM yöntemiyle otomatik hesaplanır.</AppText>
         <Button label="Ölçümü kaydet" icon="check" onPress={saveMeasurement} />
       </ModalSheet>
 
@@ -237,6 +269,8 @@ const styles = StyleSheet.create({
   summaryLabel: { ...typography.caption, color: colors.inkSoft },
   summaryValue: { fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
   summaryUnit: { fontSize: 15, color: colors.inkSoft, fontWeight: '600' },
+  compositionMain: { ...typography.bodyMedium, color: colors.accent, marginTop: spacing.sm },
+  compositionDetail: { ...typography.caption, color: colors.inkSoft, marginTop: 2 },
   deltaPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill },
   deltaDown: { backgroundColor: colors.successSoft },
   deltaUp: { backgroundColor: colors.warningSoft },
@@ -249,6 +283,7 @@ const styles = StyleSheet.create({
   chartBarActive: { backgroundColor: colors.accent },
   chartDate: { fontSize: 9, lineHeight: 11, color: colors.inkSoft },
   muted: { ...typography.caption, color: colors.inkSoft },
+  rfmNote: { ...typography.caption, color: colors.inkSoft, fontStyle: 'italic' },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   metricCard: { width: '47%', flexGrow: 1, gap: spacing.sm, padding: spacing.md },
   metricIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
@@ -273,6 +308,7 @@ const styles = StyleSheet.create({
   longPressHint: { ...typography.caption, color: colors.inkSoft, textAlign: 'center' },
   modalIntro: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, backgroundColor: colors.infoSoft, padding: spacing.md, borderRadius: radius.md },
   modalIntroText: { flex: 1, ...typography.caption, color: colors.info },
+  profileMeasureCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.primaryLight, padding: spacing.md },
   fieldRow: { flexDirection: 'row', gap: spacing.md },
   fieldHalf: { flex: 1 },
   photoActionRow: { flexDirection: 'row', gap: spacing.md },

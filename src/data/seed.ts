@@ -37,6 +37,7 @@ export const createSeedData = async (): Promise<AppData> => {
     level: 'Orta',
     weeklyGoal: 3,
     heightCm: 168,
+    biologicalSex: 'female',
     birthYear: 1996,
     createdAt,
   };
@@ -53,6 +54,7 @@ export const createSeedData = async (): Promise<AppData> => {
     level: 'Başlangıç',
     weeklyGoal: 2,
     heightCm: 172,
+    biologicalSex: 'female',
     birthYear: 1993,
     notes: 'Diz hassasiyeti; derin fleksiyonda dikkat.',
     createdAt: dateWithOffset(-5, 14),

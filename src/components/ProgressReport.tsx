@@ -5,6 +5,7 @@ import { colors, radius, spacing, typography } from '../constants';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types/domain';
 import { formatShortDate } from '../utils/date';
+import { effectiveBodyFatPercent } from '../utils/bodyComposition';
 import { ProgressRing, TrendChart } from './graphics';
 import { AppText, Card } from './ui';
 
@@ -33,7 +34,9 @@ export const ProgressReport = ({ student }: { student: Student }) => {
 
   const weightDelta = report.first && report.latest ? report.latest.weightKg - report.first.weightKg : undefined;
   const waistDelta = report.first?.waistCm != null && report.latest?.waistCm != null ? report.latest.waistCm - report.first.waistCm : undefined;
-  const fatDelta = report.first?.bodyFatPercent != null && report.latest?.bodyFatPercent != null ? report.latest.bodyFatPercent - report.first.bodyFatPercent : undefined;
+  const firstFat = effectiveBodyFatPercent(report.first);
+  const latestFat = effectiveBodyFatPercent(report.latest);
+  const fatDelta = firstFat != null && latestFat != null ? latestFat - firstFat : undefined;
 
   return (
     <View style={styles.root}>

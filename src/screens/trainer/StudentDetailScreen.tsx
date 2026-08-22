@@ -11,6 +11,7 @@ import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { nutritionTemplateOptions, NutritionTemplateId, programTemplateOptions, ProgramTemplateId } from '../../data/templates';
 import { Exercise, NutritionPlan, Student, WorkoutDay } from '../../types/domain';
+import { calculateBodyMasses, calculateRfmPercent, effectiveBodyFatPercent } from '../../utils/bodyComposition';
 import { formatAppointment, formatDate, formatShortDate, toDateInput } from '../../utils/date';
 
 type DetailTab = 'overview' | 'workout' | 'nutrition' | 'progress';
@@ -27,7 +28,7 @@ export const StudentDetailScreen = ({
   onMessage: () => void;
   onCalendar: () => void;
 }) => {
-  const { data, students, assignProgram, assignNutrition, updateNutritionPlan, updateUser, updateWorkoutDay } = useApp();
+  const { data, students, addMeasurement, assignProgram, assignNutrition, updateNutritionPlan, updateUser, updateWorkoutDay } = useApp();
   const student = students.find((item) => item.id === studentId);
   const [tab, setTab] = useState<DetailTab>('overview');
   const [progressTab, setProgressTab] = useState<ProgressTab>('report');
@@ -48,6 +49,15 @@ export const StudentDetailScreen = ({
   const [packageRemaining, setPackageRemaining] = useState(`${student?.lessonPackage?.remainingLessons ?? 8}`);
   const [packageExpiry, setPackageExpiry] = useState(student?.lessonPackage?.expiresAt?.slice(0, 10) ?? '');
   const [packageError, setPackageError] = useState('');
+  const [professionalModal, setProfessionalModal] = useState(false);
+  const [professionalWeight, setProfessionalWeight] = useState('');
+  const [professionalWaist, setProfessionalWaist] = useState('');
+  const [professionalFat, setProfessionalFat] = useState('');
+  const [professionalChest, setProfessionalChest] = useState('');
+  const [professionalHip, setProfessionalHip] = useState('');
+  const [professionalArm, setProfessionalArm] = useState('');
+  const [professionalLeg, setProfessionalLeg] = useState('');
+  const [professionalError, setProfessionalError] = useState('');
 
   const program = data?.workoutPrograms.find((item) => item.studentId === studentId);
   const nutrition = data?.nutritionPlans.find((item) => item.studentId === studentId);
@@ -103,6 +113,43 @@ export const StudentDetailScreen = ({
     updateUser(student.id, { lessonPackage: { totalLessons, remainingLessons, expiresAt: expiresAt.toISOString(), updatedAt: new Date().toISOString() } } as Partial<Student>);
     setPackageError('');
     setPackageModal(false);
+  };
+
+  const saveProfessionalMeasurement = () => {
+    const parse = (value: string) => Number(value.replace(',', '.'));
+    const weightKg = parse(professionalWeight);
+    const waistCm = parse(professionalWaist);
+    const professionalBodyFatPercent = parse(professionalFat);
+    if (!student.heightCm || !student.biologicalSex) {
+      setProfessionalError('RFM karşılaştırması için öğrencinin profilinde boy ve cinsiyet bilgisi bulunmalı.');
+      return;
+    }
+    if (!Number.isFinite(weightKg) || weightKg < 30 || weightKg > 300 || !Number.isFinite(waistCm) || waistCm < 40 || waistCm > 200) {
+      setProfessionalError('Kilo ve bel çevresi değerlerini kontrol et.');
+      return;
+    }
+    if (!Number.isFinite(professionalBodyFatPercent) || professionalBodyFatPercent < 2 || professionalBodyFatPercent > 70) {
+      setProfessionalError('Profesyonel yağ oranı %2–70 arasında olmalı.');
+      return;
+    }
+    const optional = (value: string) => { const parsed = parse(value); return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined; };
+    const rfmBodyFatPercent = calculateRfmPercent(student.heightCm, waistCm, student.biologicalSex);
+    addMeasurement(student.id, {
+      weightKg,
+      waistCm,
+      bodyFatPercent: professionalBodyFatPercent,
+      professionalBodyFatPercent,
+      rfmBodyFatPercent,
+      ...calculateBodyMasses(weightKg, professionalBodyFatPercent),
+      heightCmAtMeasurement: student.heightCm,
+      biologicalSexAtMeasurement: student.biologicalSex,
+      chestCm: optional(professionalChest),
+      hipCm: optional(professionalHip),
+      armCm: optional(professionalArm),
+      legCm: optional(professionalLeg),
+    });
+    setProfessionalWeight(''); setProfessionalWaist(''); setProfessionalFat(''); setProfessionalChest(''); setProfessionalHip(''); setProfessionalArm(''); setProfessionalLeg(''); setProfessionalError('');
+    setProfessionalModal(false);
   };
 
   const setStatus = (status: Student['status']) => updateUser(student.id, { status } as Partial<Student>);
@@ -366,13 +413,14 @@ export const StudentDetailScreen = ({
         {tab === 'progress' ? (
           <>
             <SegmentedControl<ProgressTab> value={progressTab} options={[{ value: 'report', label: 'Rapor' }, { value: 'measurements', label: `Ölçüm (${measurements.length})` }, { value: 'photos', label: `Fotoğraf (${photos.length})` }]} onChange={setProgressTab} />
+            {progressTab === 'measurements' ? <Button label="Profesyonel ölçüm gir" icon="medical-bag" variant="accent" onPress={() => { setProfessionalError(''); setProfessionalModal(true); }} /> : null}
             {progressTab === 'report' ? (
               <ProgressReport student={student} />
             ) : progressTab === 'measurements' ? measurements.length ? (
               <>
                 <View style={styles.metricGrid}>
                   <Metric icon="scale-bathroom" label="Güncel kilo" value={`${latest?.weightKg.toFixed(1)} kg`} detail={`${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg toplam`} />
-                  <Metric icon="percent-outline" label="Yağ oranı" value={latest?.bodyFatPercent ? `%${latest.bodyFatPercent}` : '—'} detail="Güncel ölçüm" />
+                  <Metric icon="percent-outline" label="Yağ oranı" value={effectiveBodyFatPercent(latest) != null ? `%${effectiveBodyFatPercent(latest)?.toFixed(1)}` : '—'} detail={latest?.professionalBodyFatPercent != null ? 'Profesyonel ölçüm esas alındı' : 'RFM / güncel ölçüm'} />
                   <Metric icon="tape-measure" label="Bel" value={latest?.waistCm ? `${latest.waistCm} cm` : '—'} detail="Güncel ölçüm" />
                   <Metric icon="human-handsup" label="Kalça" value={latest?.hipCm ? `${latest.hipCm} cm` : '—'} detail="Güncel ölçüm" />
                 </View>
@@ -380,7 +428,7 @@ export const StudentDetailScreen = ({
                   <Card key={measurement.id} style={styles.measurementRow}>
                     <View style={[styles.measurementIcon, index === 0 && styles.measurementIconLatest]}><MaterialCommunityIcons name="chart-line" size={21} color={colors.primary} /></View>
                     <View style={styles.flex}><View style={styles.measurementTop}><AppText style={typography.bodyMedium}>{measurement.weightKg.toFixed(1)} kg</AppText>{index === 0 ? <Chip label="Güncel" tone="success" /> : null}</View><AppText style={styles.muted}>{formatDate(measurement.date)}</AppText></View>
-                    <View style={styles.measurementRight}>{measurement.waistCm ? <AppText style={styles.muted}>Bel {measurement.waistCm}</AppText> : null}{measurement.bodyFatPercent ? <AppText style={styles.muted}>Yağ %{measurement.bodyFatPercent}</AppText> : null}</View>
+                    <View style={styles.measurementRight}>{measurement.waistCm ? <AppText style={styles.muted}>Bel {measurement.waistCm}</AppText> : null}{measurement.professionalBodyFatPercent != null ? <AppText style={styles.muted}>Profesyonel %{measurement.professionalBodyFatPercent.toFixed(1)}</AppText> : null}{measurement.rfmBodyFatPercent != null ? <AppText style={styles.muted}>RFM %{measurement.rfmBodyFatPercent.toFixed(1)}</AppText> : measurement.bodyFatPercent != null ? <AppText style={styles.muted}>Yağ %{measurement.bodyFatPercent.toFixed(1)}</AppText> : null}</View>
                   </Card>
                 ))}
               </>
@@ -458,6 +506,31 @@ export const StudentDetailScreen = ({
         <TextField label="Özel not" value={notes} onChangeText={setNotes} multiline placeholder="Sakatlık geçmişi, hareket kısıtı veya takip notu" />
         <AppText style={styles.muted}>Bu not yalnızca Cem Hoca panelinde görünür.</AppText>
         <Button label="Notu kaydet" icon="check" onPress={saveNotes} />
+      </ModalSheet>
+
+      <ModalSheet visible={professionalModal} onClose={() => setProfessionalModal(false)} title="Profesyonel ölçüm gir" fullHeight>
+        <View style={styles.editorIntro}>
+          <MaterialCommunityIcons name="medical-bag" size={23} color={colors.accent} />
+          <View style={styles.flex}><AppText style={typography.bodyMedium}>{student.fullName}</AppText><AppText style={styles.muted}>InBody, skinfold veya başka bir profesyonel ölçüm sonucunu RFM tahminiyle birlikte sakla.</AppText></View>
+        </View>
+        <Card style={styles.packageCard}>
+          <View style={styles.flex}><AppText style={styles.cardLabel}>PROFİL VERİSİ</AppText><AppText style={typography.bodyMedium}>Boy: {student.heightCm ? `${student.heightCm} cm` : 'Eksik'} · Cinsiyet: {student.biologicalSex === 'male' ? 'Erkek' : student.biologicalSex === 'female' ? 'Kadın' : 'Eksik'}</AppText></View>
+        </Card>
+        <View style={styles.editorFieldRow}>
+          <TextField containerStyle={styles.editorField} label="Kilo (kg) *" value={professionalWeight} onChangeText={setProfessionalWeight} keyboardType="decimal-pad" placeholder="82,0" />
+          <TextField containerStyle={styles.editorField} label="Bel (cm) *" value={professionalWaist} onChangeText={setProfessionalWaist} keyboardType="decimal-pad" placeholder="86" />
+        </View>
+        <TextField label="Profesyonel yağ oranı (%) *" value={professionalFat} onChangeText={setProfessionalFat} keyboardType="decimal-pad" placeholder="19,8" icon="percent-outline" />
+        <View style={styles.editorFieldRow}>
+          <TextField containerStyle={styles.editorField} label="Göğüs (cm)" value={professionalChest} onChangeText={setProfessionalChest} keyboardType="decimal-pad" />
+          <TextField containerStyle={styles.editorField} label="Kalça (cm)" value={professionalHip} onChangeText={setProfessionalHip} keyboardType="decimal-pad" />
+        </View>
+        <View style={styles.editorFieldRow}>
+          <TextField containerStyle={styles.editorField} label="Kol (cm)" value={professionalArm} onChangeText={setProfessionalArm} keyboardType="decimal-pad" />
+          <TextField containerStyle={styles.editorField} label="Bacak (cm)" value={professionalLeg} onChangeText={setProfessionalLeg} keyboardType="decimal-pad" />
+        </View>
+        {professionalError ? <View style={styles.editorError}><MaterialCommunityIcons name="alert-circle-outline" size={19} color={colors.danger} /><AppText style={styles.editorErrorText}>{professionalError}</AppText></View> : null}
+        <Button label="Profesyonel ölçümü kaydet" icon="content-save-check-outline" variant="accent" onPress={saveProfessionalMeasurement} />
       </ModalSheet>
 
       <ModalSheet visible={packageModal} onClose={() => setPackageModal(false)} title="Ders paketini yönet">

@@ -5,6 +5,7 @@ export type StudentStatus = 'new' | 'active' | 'paused';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
 export type AppointmentMode = 'in_person' | 'online';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type BiologicalSex = 'male' | 'female';
 
 export interface BaseUser {
   id: string;
@@ -30,6 +31,7 @@ export interface Student extends BaseUser {
   level: 'Başlangıç' | 'Orta' | 'İleri';
   weeklyGoal: number;
   heightCm?: number;
+  biologicalSex?: BiologicalSex;
   birthYear?: number;
   notes?: string;
   lessonPackage?: LessonPackage;
@@ -147,10 +149,17 @@ export interface Measurement {
   date: string;
   weightKg: number;
   bodyFatPercent?: number;
+  rfmBodyFatPercent?: number;
+  professionalBodyFatPercent?: number;
+  fatMassKg?: number;
+  leanMassKg?: number;
+  heightCmAtMeasurement?: number;
+  biologicalSexAtMeasurement?: BiologicalSex;
   waistCm?: number;
   chestCm?: number;
   hipCm?: number;
   armCm?: number;
+  legCm?: number;
 }
 
 export interface ProgressPhoto {
