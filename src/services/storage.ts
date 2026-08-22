@@ -10,6 +10,10 @@ const SESSION_KEY = '@cemfit/session/v1';
 
 export const normalizeData = (data: AppData): AppData => ({
   ...data,
+  appointments: Array.isArray(data.appointments)
+    ? data.appointments.map((appointment) => ({ ...appointment, mode: appointment.mode === 'online' ? 'online' : 'in_person' }))
+    : [],
+  appointmentBlocks: Array.isArray(data.appointmentBlocks) ? data.appointmentBlocks : [],
   mealEntries: Array.isArray(data.mealEntries) ? data.mealEntries : [],
 });
 

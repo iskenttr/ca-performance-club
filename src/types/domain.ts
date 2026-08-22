@@ -3,6 +3,7 @@ export const TRAINER_ID = 'trainer-cem-arslanoglu';
 export type Role = 'student' | 'trainer';
 export type StudentStatus = 'new' | 'active' | 'paused';
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type AppointmentMode = 'in_person' | 'online';
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export interface BaseUser {
@@ -158,8 +159,17 @@ export interface Appointment {
   studentId: string;
   startAt: string;
   durationMinutes: number;
+  mode: AppointmentMode;
   status: AppointmentStatus;
   note: string;
+}
+
+export interface AppointmentBlock {
+  id: string;
+  startAt: string;
+  endAt: string;
+  note: string;
+  createdAt: string;
 }
 
 export interface ChatMessage {
@@ -187,6 +197,7 @@ export interface AppData {
   measurements: Measurement[];
   progressPhotos: ProgressPhoto[];
   appointments: Appointment[];
+  appointmentBlocks: AppointmentBlock[];
   messages: ChatMessage[];
   workoutCompletions: WorkoutCompletion[];
   mealEntries: MealEntry[];
@@ -206,4 +217,4 @@ export type MeasurementInput = Omit<Measurement, 'id' | 'studentId' | 'date'> & 
   date?: string;
 };
 
-export type AppointmentInput = Pick<Appointment, 'studentId' | 'startAt' | 'durationMinutes' | 'note'>;
+export type AppointmentInput = Pick<Appointment, 'studentId' | 'startAt' | 'durationMinutes' | 'mode' | 'note'>;

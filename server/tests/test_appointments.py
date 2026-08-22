@@ -33,6 +33,17 @@ class AppointmentAvailabilityTests(unittest.TestCase):
         }
         self.assertFalse(appointment_overlaps(state, datetime(2026, 8, 24, 18, 0, tzinfo=ISTANBUL), 60))
 
+    def test_blocks_trainer_unavailable_time(self):
+        state = {
+            'appointments': [],
+            'appointmentBlocks': [{
+                'startAt': '2026-08-24T12:00:00+03:00',
+                'endAt': '2026-08-24T14:00:00+03:00',
+            }],
+        }
+        self.assertTrue(appointment_overlaps(state, datetime(2026, 8, 24, 13, 30, tzinfo=ISTANBUL), 60))
+        self.assertFalse(appointment_overlaps(state, datetime(2026, 8, 24, 14, 0, tzinfo=ISTANBUL), 60))
+
     def test_enforces_cem_hoca_working_hours(self):
         monday = datetime(2026, 8, 24, 9, 0, tzinfo=ISTANBUL)
         sunday = datetime(2026, 8, 23, 12, 0, tzinfo=ISTANBUL)

@@ -21,6 +21,7 @@ import {
 import { loadData, loadSession, normalizeData, resetStoredData, saveData, saveSession } from '../services/storage';
 import {
   AppData,
+  AppointmentBlock,
   AppointmentInput,
   MeasurementInput,
   MealAnalysis,
@@ -53,6 +54,8 @@ interface AppContextValue {
   addProgressPhoto: (studentId: string, uri: string, caption?: string) => void;
   removeProgressPhoto: (photoId: string) => void;
   addAppointment: (input: AppointmentInput, status?: 'pending' | 'confirmed') => void;
+  addAppointmentBlock: (input: Pick<AppointmentBlock, 'startAt' | 'endAt' | 'note'>) => void;
+  removeAppointmentBlock: (blockId: string) => void;
   getAppointmentAvailability: (durationMinutes: number) => Promise<string[]>;
   requestAppointment: (input: AppointmentInput) => Promise<void>;
   updateAppointmentStatus: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled') => void;
@@ -301,6 +304,24 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     }));
   };
 
+  const addAppointmentBlock = (input: Pick<AppointmentBlock, 'startAt' | 'endAt' | 'note'>) => {
+    commit((current) => ({
+      ...current,
+      appointmentBlocks: [...current.appointmentBlocks, {
+        id: `appointment-block-${Crypto.randomUUID()}`,
+        ...input,
+        createdAt: new Date().toISOString(),
+      }],
+    }));
+  };
+
+  const removeAppointmentBlock = (blockId: string) => {
+    commit((current) => ({
+      ...current,
+      appointmentBlocks: current.appointmentBlocks.filter((item) => item.id !== blockId),
+    }));
+  };
+
   const getAppointmentAvailability = async (durationMinutes: number) => {
     if (!sessionToken) throw new Error('Uygun saatleri görmek için yeniden giriş yapmalısın.');
     const result = await fetchAppointmentAvailability(durationMinutes, sessionToken);
@@ -444,6 +465,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       addProgressPhoto,
       removeProgressPhoto,
       addAppointment,
+      addAppointmentBlock,
+      removeAppointmentBlock,
       getAppointmentAvailability,
       requestAppointment,
       updateAppointmentStatus,

@@ -58,7 +58,7 @@ def default_state():
         }],
         'credentials': [credential(TRAINER_ID, TRAINER_EMAIL, 'Cem123!', 'cemfit-trainer-demo')],
         'workoutPrograms': [], 'nutritionPlans': [], 'measurements': [], 'progressPhotos': [],
-        'appointments': [], 'messages': [], 'workoutCompletions': [], 'mealEntries': [],
+        'appointments': [], 'appointmentBlocks': [], 'messages': [], 'workoutCompletions': [], 'mealEntries': [],
     }
 
 
@@ -77,12 +77,14 @@ def load_state():
     with LOCK:
         state = json.loads(STATE_FILE.read_text(encoding='utf-8'))
         state.setdefault('mealEntries', [])
+        state.setdefault('appointmentBlocks', [])
         return state
 
 
 def save_state(state):
     with LOCK:
         state.setdefault('mealEntries', [])
+        state.setdefault('appointmentBlocks', [])
         temp = STATE_FILE.with_suffix('.tmp')
         temp.write_text(json.dumps(state, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
         temp.replace(STATE_FILE)
@@ -158,7 +160,7 @@ def public_meal_entry(item, requester_id):
     return public_item
 
 
-COLLECTIONS = ['workoutPrograms', 'nutritionPlans', 'measurements', 'progressPhotos', 'appointments', 'messages', 'workoutCompletions']
+COLLECTIONS = ['workoutPrograms', 'nutritionPlans', 'measurements', 'progressPhotos', 'appointments', 'appointmentBlocks', 'messages', 'workoutCompletions']
 READ_COLLECTIONS = [*COLLECTIONS, 'mealEntries']
 
 
@@ -207,6 +209,14 @@ def parse_datetime(value):
 
 def appointment_overlaps(state, start_at, duration_minutes):
     end_at = start_at + timedelta(minutes=duration_minutes)
+    for block in state.get('appointmentBlocks', []):
+        try:
+            block_start = parse_datetime(block.get('startAt'))
+            block_end = parse_datetime(block.get('endAt'))
+        except (TypeError, ValueError):
+            continue
+        if block_end > block_start and start_at < block_end and end_at > block_start:
+            return True
     for item in state.get('appointments', []):
         if item.get('status') not in ('pending', 'confirmed'):
             continue
@@ -471,7 +481,11 @@ class Handler(BaseHTTPRequestHandler):
         if not appointment_is_in_working_hours(start_at, duration):
             return self.send_json(400, {'error': 'Cem Hoca’nın çalışma saatlerinden birini seçmelisin.'})
 
-        note = str(payload.get('note') or 'Birebir PT dersi').strip()[:240]
+        mode = str(payload.get('mode') or 'in_person')
+        if mode not in ('in_person', 'online'):
+            return self.send_json(400, {'error': 'Ders türü 1’e 1 veya online olmalı.'})
+        default_note = 'Online PT dersi' if mode == 'online' else '1’e 1 PT dersi'
+        note = str(payload.get('note') or default_note).strip()[:240]
         with LOCK:
             state = load_state()
             if appointment_overlaps(state, start_at, duration):
@@ -482,6 +496,7 @@ class Handler(BaseHTTPRequestHandler):
                 'studentId': user_id,
                 'startAt': start_at.isoformat(),
                 'durationMinutes': duration,
+                'mode': mode,
                 'status': 'pending',
                 'note': note,
             }

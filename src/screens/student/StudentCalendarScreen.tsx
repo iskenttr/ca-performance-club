@@ -5,7 +5,7 @@ import { TopBar } from '../../components/AppFrame';
 import { AppText, Button, Card, Chip, EmptyState, ModalSheet, Page, SectionHeader, TextField } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
-import { Appointment, Student } from '../../types/domain';
+import { Appointment, AppointmentMode, Student } from '../../types/domain';
 import { formatAppointment, formatDate, formatTime, toDateInput } from '../../utils/date';
 
 const statusMeta: Record<Appointment['status'], { label: string; tone: 'success' | 'warning' | 'danger' | 'default' }> = {
@@ -20,7 +20,8 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
   const student = user as Student;
   const [modalOpen, setModalOpen] = useState(false);
   const [duration, setDuration] = useState(60);
-  const [note, setNote] = useState('Birebir PT dersi');
+  const [mode, setMode] = useState<AppointmentMode>('in_person');
+  const [note, setNote] = useState('');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState('');
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -80,7 +81,13 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
     setBooking(true);
     setError('');
     try {
-      await requestAppointment({ studentId: student.id, startAt: selectedSlot, durationMinutes: duration, note: note.trim() || 'Birebir PT dersi' });
+      await requestAppointment({
+        studentId: student.id,
+        startAt: selectedSlot,
+        durationMinutes: duration,
+        mode,
+        note: note.trim() || (mode === 'online' ? 'Online PT dersi' : '1’e 1 PT dersi'),
+      });
       setModalOpen(false);
       setSelectedSlot('');
     } catch (reason) {
@@ -147,6 +154,19 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
           <View style={styles.flex}><AppText style={typography.bodyMedium}>Cem Arslanoğlu</AppText><AppText style={styles.muted}>Müsait bir saat seç; talebin anında Cem Hoca’nın takvimine düşsün.</AppText></View>
         </View>
         <View style={styles.durationBlock}>
+          <AppText style={styles.fieldLabel}>Ders türü</AppText>
+          <View style={styles.modeRow}>
+            <Pressable onPress={() => setMode('in_person')} style={[styles.modeCard, mode === 'in_person' && styles.modeCardSelected]}>
+              <MaterialCommunityIcons name="account-supervisor-outline" size={24} color={mode === 'in_person' ? colors.accent : colors.primary} />
+              <View style={styles.flex}><AppText style={[typography.bodyMedium, mode === 'in_person' && styles.modeTextSelected]}>1’e 1 ders</AppText><AppText style={[styles.muted, mode === 'in_person' && styles.modeSubtextSelected]}>Cem Hoca ile yüz yüze</AppText></View>
+            </Pressable>
+            <Pressable onPress={() => setMode('online')} style={[styles.modeCard, mode === 'online' && styles.modeCardSelected]}>
+              <MaterialCommunityIcons name="video-outline" size={24} color={mode === 'online' ? colors.accent : colors.primary} />
+              <View style={styles.flex}><AppText style={[typography.bodyMedium, mode === 'online' && styles.modeTextSelected]}>Online ders</AppText><AppText style={[styles.muted, mode === 'online' && styles.modeSubtextSelected]}>Görüntülü PT seansı</AppText></View>
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.durationBlock}>
           <AppText style={styles.fieldLabel}>Ders süresi</AppText>
           <View style={styles.chipRow}>{[45, 60, 90].map((item) => <Chip key={item} label={`${item} dk`} selected={duration === item} onPress={() => changeDuration(item)} />)}</View>
         </View>
@@ -191,7 +211,7 @@ const AppointmentCard = ({ appointment, past = false, onCancel }: { appointment:
       <View style={styles.flex}>
         <View style={styles.appointmentTop}><AppText style={typography.bodyMedium}>{formatDate(appointment.startAt)}</AppText><Chip label={meta.label} tone={meta.tone} /></View>
         <AppText style={styles.appointmentNote}>{appointment.note}</AppText>
-        <View style={styles.locationRow}><MaterialCommunityIcons name="account-outline" size={16} color={colors.inkSoft} /><AppText style={styles.muted}>Cem Arslanoğlu ile birebir</AppText></View>
+        <View style={styles.locationRow}><MaterialCommunityIcons name={appointment.mode === 'online' ? 'video-outline' : 'account-outline'} size={16} color={colors.inkSoft} /><AppText style={styles.muted}>{appointment.mode === 'online' ? 'Cem Arslanoğlu ile online' : 'Cem Arslanoğlu ile 1’e 1'}</AppText></View>
         {onCancel ? <Pressable onPress={onCancel} style={styles.cancelButton}><AppText style={styles.cancelText}>Dersi iptal et</AppText></Pressable> : null}
       </View>
     </Card>
@@ -233,6 +253,11 @@ const styles = StyleSheet.create({
   coachBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primaryLight },
   coachIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   durationBlock: { gap: spacing.sm },
+  modeRow: { flexDirection: 'row', gap: spacing.sm },
+  modeCard: { flex: 1, minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface },
+  modeCardSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
+  modeTextSelected: { color: colors.white },
+  modeSubtextSelected: { color: colors.white },
   slotBlock: { gap: spacing.md, paddingTop: spacing.xs },
   slotHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   slotDay: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },

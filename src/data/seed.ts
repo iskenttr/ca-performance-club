@@ -85,11 +85,12 @@ export const createSeedData = async (): Promise<AppData> => {
     ],
     progressPhotos: [],
     appointments: [
-      { id: 'a-1', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(1, 18, 30), durationMinutes: 60, status: 'confirmed', note: 'Alt vücut teknik kontrolü' },
-      { id: 'a-2', trainerId: TRAINER_ID, studentId: elif.id, startAt: dateWithOffset(2, 11), durationMinutes: 60, status: 'pending', note: 'İlk değerlendirme' },
-      { id: 'a-3', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(5, 19), durationMinutes: 60, status: 'confirmed', note: 'Üst vücut antrenmanı' },
-      { id: 'a-4', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(-4, 18), durationMinutes: 60, status: 'completed', note: 'Tüm vücut' },
+      { id: 'a-1', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(1, 18, 30), durationMinutes: 60, mode: 'in_person', status: 'confirmed', note: 'Alt vücut teknik kontrolü' },
+      { id: 'a-2', trainerId: TRAINER_ID, studentId: elif.id, startAt: dateWithOffset(2, 11), durationMinutes: 60, mode: 'online', status: 'pending', note: 'İlk değerlendirme' },
+      { id: 'a-3', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(5, 19), durationMinutes: 60, mode: 'in_person', status: 'confirmed', note: 'Üst vücut antrenmanı' },
+      { id: 'a-4', trainerId: TRAINER_ID, studentId: deniz.id, startAt: dateWithOffset(-4, 18), durationMinutes: 60, mode: 'in_person', status: 'completed', note: 'Tüm vücut' },
     ],
+    appointmentBlocks: [],
     messages: [
       { id: 'msg-1', studentId: deniz.id, senderId: TRAINER_ID, text: 'Merhaba Deniz, bu haftaki programını güncelledim. İlk gün squat formuna odaklanalım.', sentAt: dateWithOffset(-2, 12) },
       { id: 'msg-2', studentId: deniz.id, senderId: deniz.id, text: 'Süper hocam, yarın başlıyorum. Belimdeki durum da oldukça iyi.', sentAt: dateWithOffset(-2, 12, 12), readAt: dateWithOffset(-2, 12, 20) },

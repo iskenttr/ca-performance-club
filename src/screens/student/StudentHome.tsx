@@ -132,7 +132,7 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
               </View>
               <View style={styles.flex}>
                 <View style={styles.appointmentTitleRow}>
-                  <AppText style={typography.bodyMedium}>{relativeDay(nextAppointment.startAt)} · Birebir ders</AppText>
+                  <AppText style={typography.bodyMedium}>{relativeDay(nextAppointment.startAt)} · {nextAppointment.mode === 'online' ? 'Online ders' : '1’e 1 ders'}</AppText>
                   <Chip label={nextAppointment.status === 'confirmed' ? 'Onaylandı' : 'Bekliyor'} tone={nextAppointment.status === 'confirmed' ? 'success' : 'warning'} />
                 </View>
                 <AppText style={styles.appointmentMeta}>{formatAppointment(nextAppointment.startAt)} · {nextAppointment.durationMinutes} dk</AppText>
