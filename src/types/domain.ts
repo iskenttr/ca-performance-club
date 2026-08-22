@@ -32,6 +32,14 @@ export interface Student extends BaseUser {
   heightCm?: number;
   birthYear?: number;
   notes?: string;
+  lessonPackage?: LessonPackage;
+}
+
+export interface LessonPackage {
+  totalLessons: number;
+  remainingLessons: number;
+  expiresAt: string;
+  updatedAt: string;
 }
 
 export type User = Student | Trainer;

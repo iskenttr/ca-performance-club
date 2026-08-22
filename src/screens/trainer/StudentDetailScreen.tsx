@@ -35,6 +35,7 @@ export const StudentDetailScreen = ({
   const [nutritionModal, setNutritionModal] = useState(false);
   const [nutritionEditModal, setNutritionEditModal] = useState(false);
   const [notesModal, setNotesModal] = useState(false);
+  const [packageModal, setPackageModal] = useState(false);
   const [exerciseModal, setExerciseModal] = useState(false);
   const [editingDay, setEditingDay] = useState<WorkoutDay | null>(null);
   const [exerciseError, setExerciseError] = useState('');
@@ -43,6 +44,10 @@ export const StudentDetailScreen = ({
   const [selectedProgram, setSelectedProgram] = useState<ProgramTemplateId>('balanced3');
   const [selectedNutrition, setSelectedNutrition] = useState<NutritionTemplateId>('balanced');
   const [notes, setNotes] = useState(student?.notes ?? '');
+  const [packageTotal, setPackageTotal] = useState(`${student?.lessonPackage?.totalLessons ?? 8}`);
+  const [packageRemaining, setPackageRemaining] = useState(`${student?.lessonPackage?.remainingLessons ?? 8}`);
+  const [packageExpiry, setPackageExpiry] = useState(student?.lessonPackage?.expiresAt?.slice(0, 10) ?? '');
+  const [packageError, setPackageError] = useState('');
 
   const program = data?.workoutPrograms.find((item) => item.studentId === studentId);
   const nutrition = data?.nutritionPlans.find((item) => item.studentId === studentId);
@@ -69,6 +74,35 @@ export const StudentDetailScreen = ({
   const saveNotes = () => {
     updateUser(student.id, { notes } as Partial<Student>);
     setNotesModal(false);
+  };
+
+  const openLessonPackage = () => {
+    setPackageTotal(`${student.lessonPackage?.totalLessons ?? 8}`);
+    setPackageRemaining(`${student.lessonPackage?.remainingLessons ?? 8}`);
+    setPackageExpiry(student.lessonPackage?.expiresAt?.slice(0, 10) ?? '');
+    setPackageError('');
+    setPackageModal(true);
+  };
+
+  const saveLessonPackage = () => {
+    const totalLessons = Number(packageTotal.replace(/[^0-9]/g, ''));
+    const remainingLessons = Number(packageRemaining.replace(/[^0-9]/g, ''));
+    const expiresAt = new Date(`${packageExpiry}T23:59:59`);
+    if (!Number.isInteger(totalLessons) || totalLessons < 1 || totalLessons > 500) {
+      setPackageError('Toplam ders sayısı 1–500 arasında olmalı.');
+      return;
+    }
+    if (!Number.isInteger(remainingLessons) || remainingLessons < 0 || remainingLessons > totalLessons) {
+      setPackageError('Kalan ders sayısı toplam ders sayısından fazla olamaz.');
+      return;
+    }
+    if (Number.isNaN(expiresAt.getTime())) {
+      setPackageError('Geçerli bir paket bitiş tarihi gir.');
+      return;
+    }
+    updateUser(student.id, { lessonPackage: { totalLessons, remainingLessons, expiresAt: expiresAt.toISOString(), updatedAt: new Date().toISOString() } } as Partial<Student>);
+    setPackageError('');
+    setPackageModal(false);
   };
 
   const setStatus = (status: Student['status']) => updateUser(student.id, { status } as Partial<Student>);
@@ -240,6 +274,16 @@ export const StudentDetailScreen = ({
             <Card style={styles.goalCard}>
               <View style={styles.goalIcon}><MaterialCommunityIcons name="bullseye-arrow" size={25} color={colors.primary} /></View>
               <View style={styles.flex}><AppText style={styles.cardLabel}>ANA HEDEF</AppText><AppText style={typography.h3}>{student.goal}</AppText><AppText style={styles.muted}>{student.level} seviye · haftada {student.weeklyGoal} gün</AppText></View>
+            </Card>
+
+            <Card style={styles.packageCard}>
+              <View style={styles.packageIcon}><MaterialCommunityIcons name="ticket-confirmation-outline" size={25} color={colors.primary} /></View>
+              <View style={styles.flex}>
+                <AppText style={styles.cardLabel}>DERS PAKETİ</AppText>
+                <AppText style={typography.h3}>{student.lessonPackage ? `${student.lessonPackage.remainingLessons} / ${student.lessonPackage.totalLessons} ders kaldı` : 'Paket bilgisi girilmedi'}</AppText>
+                <AppText style={styles.muted}>{student.lessonPackage ? `${formatDate(student.lessonPackage.expiresAt)} tarihinde sona erer` : 'Kalan ders ve bitiş tarihini takip etmek için paket ekle.'}</AppText>
+              </View>
+              <Button label={student.lessonPackage ? 'Güncelle' : 'Paket ekle'} icon="pencil-outline" compact variant="secondary" onPress={openLessonPackage} />
             </Card>
 
             <Card style={styles.notesCard}>
@@ -416,6 +460,20 @@ export const StudentDetailScreen = ({
         <Button label="Notu kaydet" icon="check" onPress={saveNotes} />
       </ModalSheet>
 
+      <ModalSheet visible={packageModal} onClose={() => setPackageModal(false)} title="Ders paketini yönet">
+        <View style={styles.editorIntro}>
+          <MaterialCommunityIcons name="ticket-confirmation-outline" size={23} color={colors.accent} />
+          <View style={styles.flex}><AppText style={typography.bodyMedium}>{student.fullName}</AppText><AppText style={styles.muted}>Paket azaldığında Cem Hoca yönetim panelinde uyarı görünür.</AppText></View>
+        </View>
+        <View style={styles.editorFieldRow}>
+          <TextField containerStyle={styles.editorField} label="Toplam ders" value={packageTotal} onChangeText={setPackageTotal} keyboardType="number-pad" placeholder="8" />
+          <TextField containerStyle={styles.editorField} label="Kalan ders" value={packageRemaining} onChangeText={setPackageRemaining} keyboardType="number-pad" placeholder="8" />
+        </View>
+        <TextField label="Paket bitiş tarihi" value={packageExpiry} onChangeText={setPackageExpiry} placeholder="YYYY-AA-GG" icon="calendar-outline" />
+        {packageError ? <View style={styles.editorError}><MaterialCommunityIcons name="alert-circle-outline" size={19} color={colors.danger} /><AppText style={styles.editorErrorText}>{packageError}</AppText></View> : null}
+        <Button label="Paketi kaydet" icon="content-save-check-outline" variant="accent" onPress={saveLessonPackage} />
+      </ModalSheet>
+
       <ModalSheet visible={exerciseModal} onClose={() => setExerciseModal(false)} title={`${editingDay?.label ?? ''} hareketleri`} fullHeight>
         <View style={styles.editorIntro}>
           <MaterialCommunityIcons name="account-edit-outline" size={23} color={colors.accent} />
@@ -467,6 +525,8 @@ const styles = StyleSheet.create({
   metricDetail: { ...typography.caption, color: colors.inkSoft },
   goalCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: '#29331C' },
   goalIcon: { width: 52, height: 52, borderRadius: 17, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  packageCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  packageIcon: { width: 52, height: 52, borderRadius: 17, backgroundColor: colors.warningSoft, alignItems: 'center', justifyContent: 'center' },
   cardLabel: { ...typography.label, color: colors.inkSoft },
   notesCard: { gap: spacing.md },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

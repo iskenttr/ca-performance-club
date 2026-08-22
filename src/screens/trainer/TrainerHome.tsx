@@ -8,7 +8,7 @@ import { AppText, Avatar, Card, Chip, Page, SectionHeader } from '../../componen
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { TRAINER_ID, Trainer } from '../../types/domain';
-import { formatAppointment, formatTime, relativeDay } from '../../utils/date';
+import { formatAppointment, formatDate, formatTime, relativeDay } from '../../utils/date';
 import type { TrainerRoute } from './TrainerApp';
 
 export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: TrainerRoute) => void; onStudent: (studentId: string) => void }) => {
@@ -21,6 +21,27 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
   const todayKey = new Date().toDateString();
   const todayLessons = upcoming.filter((item) => new Date(item.startAt).toDateString() === todayKey);
   const nextLessons = upcoming.slice(0, 3);
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000);
+  const weeklyLessons = data?.appointments.filter((item) => item.status !== 'cancelled' && new Date(item.startAt) >= weekStart && new Date(item.startAt) < weekEnd).length ?? 0;
+  const recentCutoff = Date.now() - 7 * 86_400_000;
+  const atRiskStudents = students.filter((student) => {
+    if (student.status !== 'active' || !data?.workoutPrograms.some((item) => item.studentId === student.id)) return false;
+    const completedDays = new Set(data.workoutCompletions.filter((item) => item.studentId === student.id && new Date(item.completedOn).getTime() >= recentCutoff).map((item) => item.completedOn));
+    return completedDays.size < student.weeklyGoal;
+  });
+  const expiringPackages = students.filter((student) => student.lessonPackage && (
+    student.lessonPackage.remainingLessons <= 2
+    || new Date(student.lessonPackage.expiresAt).getTime() <= Date.now() + 14 * 86_400_000
+  ));
+  const notifications = [
+    ...(data?.messages.filter((item) => item.senderId !== TRAINER_ID && !item.readAt).map((item) => ({ id: item.id, studentId: item.studentId, type: 'message' as const, at: item.sentAt, title: 'Yeni mesaj', detail: item.text })) ?? []),
+    ...(data?.mealEntries.filter((item) => new Date(item.createdAt).getTime() >= recentCutoff).map((item) => ({ id: item.id, studentId: item.studentId, type: 'meal' as const, at: item.createdAt, title: 'Yeni öğün', detail: `${item.name} · ${Math.round(item.caloriesKcal)} kcal` })) ?? []),
+    ...(data?.measurements.filter((item) => new Date(item.date).getTime() >= recentCutoff).map((item) => ({ id: item.id, studentId: item.studentId, type: 'measurement' as const, at: item.date, title: 'Yeni ölçüm', detail: `${item.weightKg.toFixed(1)} kg` })) ?? []),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   return (
     <View style={styles.root}>
@@ -48,10 +69,42 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
         </Card>
 
         <View style={styles.statsGrid}>
-          <StatCard icon="account-group-outline" value={`${activeStudents}`} label="Aktif öğrenci" color={colors.primaryLight} onPress={() => onNavigate('students')} />
-          <StatCard icon="account-plus-outline" value={`${newStudents.length}`} label="Yeni kayıt" color="#29331C" onPress={() => onNavigate('students')} />
-          <StatCard icon="calendar-check-outline" value={`${upcoming.length}`} label="Yaklaşan ders" color={colors.infoSoft} onPress={() => onNavigate('calendar')} />
-          <StatCard icon="message-badge-outline" value={`${unread}`} label="Yeni mesaj" color={colors.warningSoft} onPress={() => onNavigate('messages')} />
+          <StatCard icon="calendar-week-outline" value={`${weeklyLessons}`} label="Bu haftaki ders" color={colors.infoSoft} onPress={() => onNavigate('calendar')} />
+          <StatCard icon="run-fast" value={`${atRiskStudents.length}`} label="Programı aksatan" color={colors.dangerSoft} onPress={() => onNavigate('students')} />
+          <StatCard icon="ticket-confirmation-outline" value={`${expiringPackages.length}`} label="Paketi bitiyor" color={colors.warningSoft} onPress={() => onNavigate('students')} />
+          <StatCard icon="bell-badge-outline" value={`${notifications.length}`} label="Yeni bildirim" color={colors.primaryLight} onPress={() => onNavigate('messages')} />
+        </View>
+
+        {(atRiskStudents.length || expiringPackages.length) ? (
+          <View style={styles.sectionBlock}>
+            <SectionHeader title="Dikkat gereken öğrenciler" action="Öğrenciler" onAction={() => onNavigate('students')} />
+            {[...new Set([...atRiskStudents, ...expiringPackages])].slice(0, 5).map((student) => {
+              const atRisk = atRiskStudents.some((item) => item.id === student.id);
+              const packageAlert = expiringPackages.some((item) => item.id === student.id);
+              return (
+                <Card key={student.id} onPress={() => onStudent(student.id)} style={styles.alertCard}>
+                  <Avatar name={student.fullName} size={42} />
+                  <View style={styles.flex}><AppText style={typography.bodyMedium}>{student.fullName}</AppText><AppText style={styles.studentGoal}>{atRisk ? `Son 7 günde hedefinin altında · ${student.weeklyGoal} gün hedef` : 'Antrenman düzeni iyi'}</AppText></View>
+                  <View style={styles.alertChips}>{atRisk ? <Chip label="AKSATIYOR" tone="danger" /> : null}{packageAlert ? <Chip label={`${student.lessonPackage?.remainingLessons ?? 0} DERS`} tone="warning" /> : null}</View>
+                </Card>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <View style={styles.sectionBlock}>
+          <SectionHeader title="Yeni öğrenci hareketleri" />
+          {notifications.length ? notifications.slice(0, 6).map((event) => {
+            const student = students.find((item) => item.id === event.studentId);
+            const icon = event.type === 'meal' ? 'food-apple-outline' : event.type === 'measurement' ? 'scale-bathroom' : 'message-text-outline';
+            return (
+              <Card key={`${event.type}-${event.id}`} onPress={() => onStudent(event.studentId)} style={styles.activityCard}>
+                <View style={styles.activityIcon}><MaterialCommunityIcons name={icon} size={21} color={colors.primary} /></View>
+                <View style={styles.flex}><AppText style={typography.bodyMedium}>{event.title} · {student?.fullName ?? 'Öğrenci'}</AppText><AppText style={styles.studentGoal} numberOfLines={1}>{event.detail}</AppText></View>
+                <AppText style={styles.activityDate}>{formatDate(event.at)}</AppText>
+              </Card>
+            );
+          }) : <Card><AppText style={styles.emptyText}>Son 7 günde yeni öğün, ölçüm veya okunmamış mesaj yok.</AppText></Card>}
         </View>
 
         {newStudents.length ? (
@@ -148,6 +201,11 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 25, lineHeight: 29, fontWeight: '800' },
   statLabel: { ...typography.caption, color: colors.inkSoft },
   sectionBlock: { gap: spacing.md },
+  alertCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  alertChips: { alignItems: 'flex-end', gap: 5 },
+  activityCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
+  activityIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  activityDate: { ...typography.caption, color: colors.inkSoft },
   studentCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md },
   studentNameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   studentGoal: { ...typography.caption, color: colors.inkSoft, marginTop: 3 },
