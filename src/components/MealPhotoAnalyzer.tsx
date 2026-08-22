@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import React, { useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
 import { colors, radius, spacing, typography } from '../constants';
@@ -47,18 +47,29 @@ export const MealPhotoAnalyzer = () => {
 
   const prepareForLogMeal = async (asset: ImagePicker.ImagePickerAsset) => {
     const longestSide = Math.max(asset.width, asset.height);
-    const context = ImageManipulator.manipulate(asset.uri);
+    const actions: Parameters<typeof manipulateAsync>[1] = [];
     if (longestSide > LOGMEAL_MAX_DIMENSION) {
-      if (asset.width >= asset.height) context.resize({ width: LOGMEAL_MAX_DIMENSION, height: null });
-      else context.resize({ width: null, height: LOGMEAL_MAX_DIMENSION });
+      actions.push({
+        resize: asset.width >= asset.height
+          ? { width: LOGMEAL_MAX_DIMENSION }
+          : { height: LOGMEAL_MAX_DIMENSION },
+      });
     }
-    const rendered = await context.renderAsync();
-    let result = await rendered.saveAsync({ base64: true, compress: 0.72, format: SaveFormat.JPEG });
+    let result = await manipulateAsync(asset.uri, actions, {
+      base64: true,
+      compress: 0.72,
+      format: SaveFormat.JPEG,
+    });
     if (result.base64 && Math.floor(result.base64.length * 0.75) > LOGMEAL_TARGET_BYTES) {
-      const retryContext = ImageManipulator.manipulate(result.uri);
-      if (result.width >= result.height) retryContext.resize({ width: 960, height: null });
-      else retryContext.resize({ width: null, height: 960 });
-      result = await (await retryContext.renderAsync()).saveAsync({ base64: true, compress: 0.58, format: SaveFormat.JPEG });
+      result = await manipulateAsync(result.uri, [{
+        resize: result.width >= result.height
+          ? { width: 960 }
+          : { height: 960 },
+      }], {
+        base64: true,
+        compress: 0.58,
+        format: SaveFormat.JPEG,
+      });
     }
     return result;
   };
