@@ -16,13 +16,15 @@ const statusMeta: Record<Appointment['status'], { label: string; tone: 'success'
 };
 
 export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) => {
-  const { data, user, addAppointment, updateAppointmentStatus } = useApp();
+  const { data, user, getAppointmentAvailability, requestAppointment, updateAppointmentStatus } = useApp();
   const student = user as Student;
   const [modalOpen, setModalOpen] = useState(false);
-  const [date, setDate] = useState(toDateInput(new Date(Date.now() + 2 * 86_400_000)));
-  const [time, setTime] = useState('18:00');
   const [duration, setDuration] = useState(60);
-  const [note, setNote] = useState('Birebir antrenman');
+  const [note, setNote] = useState('Birebir PT dersi');
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [booking, setBooking] = useState(false);
   const [error, setError] = useState('');
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
 
@@ -38,15 +40,59 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
     return value;
   });
 
-  const requestAppointment = () => {
-    const startAt = new Date(`${date}T${time}:00`);
-    if (Number.isNaN(startAt.getTime()) || startAt <= new Date()) {
-      setError('Gelecekte geçerli bir tarih ve saat seç.');
+  const loadAvailableSlots = async (nextDuration: number) => {
+    setLoadingSlots(true);
+    setError('');
+    setSelectedSlot('');
+    try {
+      setAvailableSlots(await getAppointmentAvailability(nextDuration));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Uygun saatler alınamadı.');
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const openBooking = () => {
+    setModalOpen(true);
+    void loadAvailableSlots(duration);
+  };
+
+  const changeDuration = (nextDuration: number) => {
+    setDuration(nextDuration);
+    void loadAvailableSlots(nextDuration);
+  };
+
+  const slotDays = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+    availableSlots.forEach((slot) => {
+      const key = toDateInput(new Date(slot));
+      grouped.set(key, [...(grouped.get(key) ?? []), slot]);
+    });
+    return [...grouped.entries()].slice(0, 7);
+  }, [availableSlots]);
+
+  const submitAppointment = async () => {
+    if (!selectedSlot) {
+      setError('Önce uygun bir saat seçmelisin.');
       return;
     }
-    addAppointment({ studentId: student.id, startAt: startAt.toISOString(), durationMinutes: duration, note: note.trim() || 'Birebir antrenman' }, 'pending');
+    setBooking(true);
     setError('');
-    setModalOpen(false);
+    try {
+      await requestAppointment({ studentId: student.id, startAt: selectedSlot, durationMinutes: duration, note: note.trim() || 'Birebir PT dersi' });
+      setModalOpen(false);
+      setSelectedSlot('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Randevu oluşturulamadı.');
+      try {
+        setAvailableSlots(await getAppointmentAvailability(duration));
+      } catch {
+        // Asıl rezervasyon hatasını koru.
+      }
+    } finally {
+      setBooking(false);
+    }
   };
 
   const cancelAppointment = (appointment: Appointment) => setCancelTarget(appointment);
@@ -78,7 +124,7 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
           </View>
         </Card>
 
-        <Button label="Yeni ders talebi" icon="calendar-plus" variant="accent" onPress={() => setModalOpen(true)} />
+        <Button label="Cem Hoca’dan PT randevusu al" icon="calendar-plus" variant="accent" onPress={openBooking} />
 
         <View style={styles.sectionBlock}>
           <SectionHeader title="Yaklaşan dersler" />
@@ -95,20 +141,30 @@ export const StudentCalendarScreen = ({ onProfile }: { onProfile: () => void }) 
         ) : null}
       </Page>
 
-      <ModalSheet visible={modalOpen} onClose={() => setModalOpen(false)} title="Ders talep et">
+      <ModalSheet visible={modalOpen} onClose={() => setModalOpen(false)} title="PT randevusu al">
         <View style={styles.coachBanner}>
           <View style={styles.coachIcon}><MaterialCommunityIcons name="whistle-outline" size={23} color={colors.primary} /></View>
-          <View style={styles.flex}><AppText style={typography.bodyMedium}>Cem Arslanoğlu</AppText><AppText style={styles.muted}>Talebin Cem Hoca’nın onayına gönderilecek.</AppText></View>
+          <View style={styles.flex}><AppText style={typography.bodyMedium}>Cem Arslanoğlu</AppText><AppText style={styles.muted}>Müsait bir saat seç; talebin anında Cem Hoca’nın takvimine düşsün.</AppText></View>
         </View>
-        <TextField label="Tarih" value={date} onChangeText={setDate} placeholder="YYYY-AA-GG" icon="calendar-outline" />
-        <TextField label="Saat" value={time} onChangeText={setTime} placeholder="SS:DD" icon="clock-outline" />
         <View style={styles.durationBlock}>
           <AppText style={styles.fieldLabel}>Ders süresi</AppText>
-          <View style={styles.chipRow}>{[45, 60, 90].map((item) => <Chip key={item} label={`${item} dk`} selected={duration === item} onPress={() => setDuration(item)} />)}</View>
+          <View style={styles.chipRow}>{[45, 60, 90].map((item) => <Chip key={item} label={`${item} dk`} selected={duration === item} onPress={() => changeDuration(item)} />)}</View>
+        </View>
+        <View style={styles.slotBlock}>
+          <View style={styles.slotHeader}><AppText style={styles.fieldLabel}>Uygun saatler · İstanbul</AppText>{loadingSlots ? <Chip label="Yükleniyor" tone="info" /> : <Chip label={`${availableSlots.length} seçenek`} tone="success" />}</View>
+          {!loadingSlots && !slotDays.length ? <Card><EmptyState icon="calendar-remove-outline" title="Uygun saat bulunamadı" description="Ders süresini değiştir veya daha sonra tekrar kontrol et." /></Card> : null}
+          {slotDays.map(([day, slots]) => (
+            <View key={day} style={styles.slotDay}>
+              <AppText style={styles.slotDate}>{new Intl.DateTimeFormat('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(slots[0]))}</AppText>
+              <View style={styles.slotGrid}>
+                {slots.slice(0, 10).map((slot) => <Chip key={slot} label={formatTime(slot)} selected={selectedSlot === slot} onPress={() => { setSelectedSlot(slot); setError(''); }} />)}
+              </View>
+            </View>
+          ))}
         </View>
         <TextField label="Not" value={note} onChangeText={setNote} placeholder="Ders odağı veya kısa not" multiline />
         {error ? <AppText style={styles.error}>{error}</AppText> : null}
-        <Button label="Talebi gönder" icon="send-outline" onPress={requestAppointment} />
+        <Button label={selectedSlot ? `${formatAppointment(selectedSlot)} için talep gönder` : 'Uygun bir saat seç'} icon="send-outline" loading={booking} disabled={!selectedSlot || loadingSlots} onPress={() => void submitAppointment()} />
       </ModalSheet>
 
       <ModalSheet visible={Boolean(cancelTarget)} onClose={() => setCancelTarget(null)} title="Dersi iptal et">
@@ -177,6 +233,11 @@ const styles = StyleSheet.create({
   coachBanner: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primaryLight },
   coachIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   durationBlock: { gap: spacing.sm },
+  slotBlock: { gap: spacing.md, paddingTop: spacing.xs },
+  slotHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+  slotDay: { gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
+  slotDate: { ...typography.bodyMedium, textTransform: 'capitalize' },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   fieldLabel: { ...typography.caption, color: colors.inkSoft },
   chipRow: { flexDirection: 'row', gap: spacing.sm },
   error: { ...typography.caption, color: colors.danger, backgroundColor: colors.dangerSoft, padding: spacing.md, borderRadius: radius.md },

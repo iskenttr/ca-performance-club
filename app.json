@@ -46,6 +46,13 @@
       "expo-secure-store",
       "expo-font",
       [
+        "expo-notifications",
+        {
+          "color": "#D7FF45",
+          "defaultChannel": "water-reminders"
+        }
+      ],
+      [
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "CA Performance Club; adım, aktif kalori, egzersiz süresi ve antrenman özetlerini performans ekranında göstermek için Apple Sağlık verilerinizi okur.",

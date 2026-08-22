@@ -1,4 +1,4 @@
-import { AppData, MealAnalysis, MealEntry, MealType, RegisterInput } from '../types/domain';
+import { AppData, Appointment, AppointmentInput, MealAnalysis, MealEntry, MealType, RegisterInput } from '../types/domain';
 
 export interface RemoteSession {
   token: string;
@@ -52,6 +52,18 @@ export const saveRemoteData = (data: AppData, token: string) =>
 
 export const deleteRemoteAccount = (token: string) =>
   request<{ ok: true }>('/api/account', { method: 'DELETE', headers: authHeaders(token) });
+
+export const fetchAppointmentAvailability = (durationMinutes: number, token: string) =>
+  request<{ slots: string[]; timezone: string }>(`/api/appointments/availability?duration=${durationMinutes}`, {
+    headers: authHeaders(token),
+  });
+
+export const bookRemoteAppointment = (input: AppointmentInput, token: string) =>
+  request<{ appointment: Appointment; data: AppData }>('/api/appointments', {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(input),
+  });
 
 export interface MealPhotoPayload {
   imageBase64: string;

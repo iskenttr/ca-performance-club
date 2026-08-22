@@ -6,7 +6,9 @@ import { demoAccounts } from '../data/seed';
 import { createCredential, normalizeEmail, verifyCredential } from '../services/auth';
 import {
   analyzeMealPhoto as analyzeMealPhotoRequest,
+  bookRemoteAppointment,
   deleteRemoteAccount,
+  fetchAppointmentAvailability,
   fetchRemoteData,
   MealPhotoPayload,
   migrateLegacyAccount,
@@ -51,6 +53,8 @@ interface AppContextValue {
   addProgressPhoto: (studentId: string, uri: string, caption?: string) => void;
   removeProgressPhoto: (photoId: string) => void;
   addAppointment: (input: AppointmentInput, status?: 'pending' | 'confirmed') => void;
+  getAppointmentAvailability: (durationMinutes: number) => Promise<string[]>;
+  requestAppointment: (input: AppointmentInput) => Promise<void>;
   updateAppointmentStatus: (appointmentId: string, status: 'confirmed' | 'completed' | 'cancelled') => void;
   sendMessage: (studentId: string, text: string) => void;
   markThreadRead: (studentId: string) => void;
@@ -297,6 +301,21 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     }));
   };
 
+  const getAppointmentAvailability = async (durationMinutes: number) => {
+    if (!sessionToken) throw new Error('Uygun saatleri görmek için yeniden giriş yapmalısın.');
+    const result = await fetchAppointmentAvailability(durationMinutes, sessionToken);
+    return result.slots;
+  };
+
+  const requestAppointment = async (input: AppointmentInput) => {
+    if (!sessionToken) throw new Error('Randevu oluşturmak için yeniden giriş yapmalısın.');
+    const result = await bookRemoteAppointment(input, sessionToken);
+    const next = normalizeData(result.data);
+    setData(next);
+    await saveData(next);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const sendMessage = (studentId: string, text: string) => {
     if (!sessionUserId || !text.trim()) return;
     commit((current) => ({
@@ -425,6 +444,8 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       addProgressPhoto,
       removeProgressPhoto,
       addAppointment,
+      getAppointmentAvailability,
+      requestAppointment,
       updateAppointmentStatus,
       sendMessage,
       markThreadRead,

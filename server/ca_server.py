@@ -11,10 +11,11 @@ import shutil
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
+from zoneinfo import ZoneInfo
 
 from logmeal import (
     MealAnalysisError,
@@ -34,6 +35,10 @@ MEAL_PHOTO_DIR = DATA_DIR / 'meal-photos'
 TRAINER_ID = 'trainer-cem-arslanoglu'
 TRAINER_EMAIL = 'cem@cemfit.app'
 LOCK = threading.RLock()
+ISTANBUL = ZoneInfo('Europe/Istanbul')
+APPOINTMENT_DURATIONS = (45, 60, 90)
+WORKDAY_START_HOUR = 9
+WORKDAY_END_HOUR = 21
 
 
 def credential(user_id, email, password, salt):
@@ -193,6 +198,56 @@ def merge_migration(state, incoming):
     return state
 
 
+def parse_datetime(value):
+    parsed = datetime.fromisoformat(str(value or '').replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        raise ValueError('Timezone is required')
+    return parsed
+
+
+def appointment_overlaps(state, start_at, duration_minutes):
+    end_at = start_at + timedelta(minutes=duration_minutes)
+    for item in state.get('appointments', []):
+        if item.get('status') not in ('pending', 'confirmed'):
+            continue
+        try:
+            item_start = parse_datetime(item.get('startAt'))
+            item_end = item_start + timedelta(minutes=int(item.get('durationMinutes') or 0))
+        except (TypeError, ValueError):
+            continue
+        if start_at < item_end and end_at > item_start:
+            return True
+    return False
+
+
+def appointment_is_in_working_hours(start_at, duration_minutes):
+    local_start = start_at.astimezone(ISTANBUL)
+    local_end = local_start + timedelta(minutes=duration_minutes)
+    return (
+        local_start.weekday() < 6
+        and local_start.minute in (0, 30)
+        and local_start.second == 0
+        and local_start.hour >= WORKDAY_START_HOUR
+        and (local_end.hour < WORKDAY_END_HOUR or (local_end.hour == WORKDAY_END_HOUR and local_end.minute == 0))
+    )
+
+
+def available_appointment_slots(state, duration_minutes, days=14):
+    now = datetime.now(ISTANBUL)
+    slots = []
+    for day_offset in range(days):
+        day = now.date() + timedelta(days=day_offset)
+        if day.weekday() >= 6:
+            continue
+        cursor = datetime(day.year, day.month, day.day, WORKDAY_START_HOUR, tzinfo=ISTANBUL)
+        day_end = datetime(day.year, day.month, day.day, WORKDAY_END_HOUR, tzinfo=ISTANBUL)
+        while cursor + timedelta(minutes=duration_minutes) <= day_end:
+            if cursor > now + timedelta(minutes=30) and not appointment_overlaps(state, cursor, duration_minutes):
+                slots.append(cursor.isoformat())
+            cursor += timedelta(minutes=30)
+    return slots
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = 'CAPerformance/1.0'
 
@@ -230,6 +285,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(401, {'error': 'Oturum süresi doldu. Yeniden giriş yap.'})
             data = public_state(load_state(), user_id)
             return self.send_json(200, data) if data else self.send_json(401, {'error': 'Hesap bulunamadı.'})
+        if path == '/api/appointments/availability':
+            return self.appointment_availability(parse_qs(parsed_url.query))
         if path.startswith('/api/meal-photos/'):
             return self.serve_meal_photo(path.rsplit('/', 1)[-1], parse_qs(parsed_url.query).get('access', [''])[0])
         return self.serve_static(path)
@@ -246,6 +303,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.register(payload)
         if path == '/api/migrate':
             return self.migrate(payload)
+        if path == '/api/appointments':
+            return self.book_appointment(payload)
         if path == '/api/meals/analyze':
             return self.analyze_meal(payload)
         if path == '/api/meals/recalculate':
@@ -367,6 +426,68 @@ class Handler(BaseHTTPRequestHandler):
             save_state(state)
         token = issue_token(cred['userId'])
         return self.send_json(200, {'token': token, 'userId': cred['userId'], 'data': public_state(state, cred['userId'])})
+
+    def appointment_student_id(self):
+        user_id = self.current_user_id()
+        if not user_id:
+            return None, (401, 'Randevu işlemi için yeniden giriş yapmalısın.')
+        user = next((item for item in load_state()['users'] if item.get('id') == user_id), None)
+        if not user:
+            return None, (401, 'Hesap bulunamadı.')
+        if user.get('role') != 'student':
+            return None, (403, 'Uygun saat seçimi öğrenci hesabıyla kullanılabilir.')
+        return user_id, None
+
+    def appointment_availability(self, query):
+        _, error = self.appointment_student_id()
+        if error:
+            return self.send_json(error[0], {'error': error[1]})
+        try:
+            duration = int(query.get('duration', ['60'])[0])
+        except (TypeError, ValueError):
+            duration = 0
+        if duration not in APPOINTMENT_DURATIONS:
+            return self.send_json(400, {'error': 'Ders süresi 45, 60 veya 90 dakika olmalı.'})
+        return self.send_json(200, {
+            'slots': available_appointment_slots(load_state(), duration),
+            'timezone': 'Europe/Istanbul',
+        })
+
+    def book_appointment(self, payload):
+        user_id, error = self.appointment_student_id()
+        if error:
+            return self.send_json(error[0], {'error': error[1]})
+        try:
+            start_at = parse_datetime(payload.get('startAt'))
+            duration = int(payload.get('durationMinutes'))
+        except (TypeError, ValueError):
+            return self.send_json(400, {'error': 'Geçerli bir randevu saati seçmelisin.'})
+        if duration not in APPOINTMENT_DURATIONS:
+            return self.send_json(400, {'error': 'Ders süresi 45, 60 veya 90 dakika olmalı.'})
+        if start_at <= datetime.now(ISTANBUL) + timedelta(minutes=30):
+            return self.send_json(400, {'error': 'Randevu en az 30 dakika sonrası için oluşturulabilir.'})
+        if start_at > datetime.now(ISTANBUL) + timedelta(days=30):
+            return self.send_json(400, {'error': 'Randevu en fazla 30 gün sonrası için oluşturulabilir.'})
+        if not appointment_is_in_working_hours(start_at, duration):
+            return self.send_json(400, {'error': 'Cem Hoca’nın çalışma saatlerinden birini seçmelisin.'})
+
+        note = str(payload.get('note') or 'Birebir PT dersi').strip()[:240]
+        with LOCK:
+            state = load_state()
+            if appointment_overlaps(state, start_at, duration):
+                return self.send_json(409, {'error': 'Bu saat az önce doldu. Lütfen başka bir saat seç.'})
+            appointment = {
+                'id': f"appointment-{uuid.uuid4()}",
+                'trainerId': TRAINER_ID,
+                'studentId': user_id,
+                'startAt': start_at.isoformat(),
+                'durationMinutes': duration,
+                'status': 'pending',
+                'note': note,
+            }
+            state['appointments'].append(appointment)
+            save_state(state)
+        return self.send_json(201, {'appointment': appointment, 'data': public_state(state, user_id)})
 
     def meal_student(self):
         user_id = self.current_user_id()

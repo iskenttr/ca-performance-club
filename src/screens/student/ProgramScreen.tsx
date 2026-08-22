@@ -6,6 +6,7 @@ import { TopBar } from '../../components/AppFrame';
 import { ExerciseLibrary } from '../../components/ExerciseLibrary';
 import { MealPhotoAnalyzer } from '../../components/MealPhotoAnalyzer';
 import { DailyNutritionSummary, MealHistory } from '../../components/MealTracking';
+import { WaterReminderCard } from '../../components/WaterReminderCard';
 import { AppText, Card, Chip, EmptyState, Page, SegmentedControl } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
@@ -217,17 +218,20 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
               </LinearGradient>
             </ImageBackground>
             {nutrition ? (
-              <Card style={styles.nutritionHeader}>
-                <View style={styles.nutritionTop}>
-                  <View style={styles.nutritionIcon}><MaterialCommunityIcons name="food-apple-outline" size={27} color={colors.primary} /></View>
-                  <View style={styles.flex}><AppText style={typography.h2}>{nutrition.title}</AppText><AppText style={styles.updated}>Güncellendi · {formatShortDate(nutrition.updatedAt)}</AppText></View>
-                </View>
-                <View style={styles.waterRow}>
-                  <View style={styles.waterIcon}><MaterialCommunityIcons name="water-outline" size={21} color={colors.info} /></View>
-                  <View style={styles.flex}><AppText style={typography.bodyMedium}>Günlük su hedefi</AppText><AppText style={styles.updated}>Güne yayarak tüket</AppText></View>
-                  <AppText style={styles.waterValue}>{nutrition.dailyWaterLiters} L</AppText>
-                </View>
-              </Card>
+              <>
+                <Card style={styles.nutritionHeader}>
+                  <View style={styles.nutritionTop}>
+                    <View style={styles.nutritionIcon}><MaterialCommunityIcons name="food-apple-outline" size={27} color={colors.primary} /></View>
+                    <View style={styles.flex}><AppText style={typography.h2}>{nutrition.title}</AppText><AppText style={styles.updated}>Güncellendi · {formatShortDate(nutrition.updatedAt)}</AppText></View>
+                  </View>
+                  <View style={styles.waterRow}>
+                    <View style={styles.waterIcon}><MaterialCommunityIcons name="water-outline" size={21} color={colors.info} /></View>
+                    <View style={styles.flex}><AppText style={typography.bodyMedium}>Günlük su hedefi</AppText><AppText style={styles.updated}>Güne yayarak tüket</AppText></View>
+                    <AppText style={styles.waterValue}>{nutrition.dailyWaterLiters} L</AppText>
+                  </View>
+                </Card>
+                <WaterReminderCard studentId={student.id} dailyGoalLiters={nutrition.dailyWaterLiters} />
+              </>
             ) : <Card><EmptyState icon="food-apple-outline" title="Beslenme planı hazırlanıyor" description="Planın hazırlanırken fotoğraftan öğün eklemeye devam edebilirsin." /></Card>}
 
             <MealPhotoAnalyzer />
