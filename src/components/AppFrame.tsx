@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing, typography } from '../constants';
-import { AppText, Avatar, IconButton, IconName } from './ui';
+import { AppText, Avatar, IconButton, IconName, ThemeToggle } from './ui';
 
 export interface TabItem<T extends string> {
   key: T;
@@ -80,6 +80,7 @@ export const TopBar = ({
       {eyebrow ? <AppText style={styles.eyebrow}>{eyebrow}</AppText> : null}
       <AppText style={typography.h1} numberOfLines={1}>{title}</AppText>
     </View>
+    <ThemeToggle />
     {right ?? (name && onProfile ? <Pressable onPress={onProfile}><Avatar name={name} size={44} accent /></Pressable> : null)}
   </View>
 );

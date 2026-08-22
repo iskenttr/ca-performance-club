@@ -18,8 +18,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing, typography } from '../constants';
+import { useTheme } from '../context/ThemeContext';
 
 export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+export const ThemeToggle = () => {
+  const { mode, toggle } = useTheme();
+  const nextLabel = mode === 'dark' ? 'Açık temaya geç' : 'Koyu temaya geç';
+  return (
+    <Pressable
+      accessibilityLabel={nextLabel}
+      accessibilityRole="button"
+      onPress={toggle}
+      style={({ pressed }) => [styles.themeToggle, pressed && styles.pressed]}
+    >
+      <MaterialCommunityIcons name={mode === 'dark' ? 'weather-sunny' : 'weather-night'} size={20} color={colors.ink} />
+      <AppText style={styles.themeToggleText}>{mode === 'dark' ? 'Light' : 'Dark'}</AppText>
+    </Pressable>
+  );
+};
 
 export const AppText = ({
   children,
@@ -314,6 +331,8 @@ export const LoadingScreen = () => (
 
 const styles = StyleSheet.create({
   text: { color: colors.ink, ...typography.body },
+  themeToggle: { height: 38, minWidth: 76, paddingHorizontal: spacing.md, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
+  themeToggleText: { ...typography.caption, color: colors.ink, fontWeight: '700' },
   page: { flex: 1, backgroundColor: colors.cream },
   pageContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 120, gap: spacing.lg },
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, ...shadow },

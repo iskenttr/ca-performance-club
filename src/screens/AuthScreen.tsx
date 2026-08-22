@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { APP_NAME, APP_TAGLINE, colors, radius, spacing, typography } from '../constants';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types/domain';
-import { AppText, Button, Chip, TextField } from '../components/ui';
+import { AppText, Button, Chip, TextField, ThemeToggle } from '../components/ui';
 
 type Mode = 'login' | 'register';
 
@@ -80,6 +80,8 @@ export const AuthScreen = () => {
               <View style={styles.logoRow}>
                 <View style={styles.logoMark}><AppText style={styles.logoMarkText}>CA</AppText></View>
                 <AppText style={styles.logoName}>{APP_NAME}</AppText>
+                <View style={styles.logoSpacer} />
+                <ThemeToggle />
               </View>
               {!compact || mode === 'register' ? <AppText style={[styles.heroTitle, mode === 'login' && styles.loginHeroTitle]}>Hedefin belli.{'\n'}Planın hazır.</AppText> : null}
               <AppText style={[styles.heroSubtitle, compact && styles.compactSubtitle]}>{APP_TAGLINE} Cem Arslanoğlu ile birebir takip.</AppText>
@@ -194,7 +196,8 @@ const styles = StyleSheet.create({
   loginHeroTitle: { fontSize: 36, lineHeight: 38 },
   heroSubtitle: { color: '#C5D5D0', fontSize: 16, lineHeight: 23, maxWidth: 360 },
   compactSubtitle: { fontSize: 13, lineHeight: 18 },
-  formSheet: { flex: 1, width: '100%', maxWidth: 560, minWidth: 0, alignSelf: 'center', backgroundColor: 'rgba(8,11,10,0.98)', borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: colors.border, padding: spacing.xl, paddingBottom: 42, gap: spacing.lg },
+  formSheet: { flex: 1, width: '100%', maxWidth: 560, minWidth: 0, alignSelf: 'center', backgroundColor: colors.surface, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderTopWidth: 1, borderColor: colors.border, padding: spacing.xl, paddingBottom: 42, gap: spacing.lg },
+  logoSpacer: { flex: 1 },
   loginSheet: { flex: 0, flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 465 },
   compactLoginSheet: { minHeight: 0, paddingTop: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md },
   modeSwitch: { flexDirection: 'row', padding: 4, backgroundColor: colors.surfaceMuted, borderRadius: radius.md },
