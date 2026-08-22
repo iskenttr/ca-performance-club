@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import React, { useState } from 'react';
 import { Image, Platform, StyleSheet, View } from 'react-native';
 import { colors, radius, spacing, typography } from '../constants';
@@ -7,7 +8,8 @@ import { useApp } from '../context/AppContext';
 import { MealAnalysis, MealType } from '../types/domain';
 import { AppText, Button, Card, Chip, ModalSheet, TextField } from './ui';
 
-const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+const LOGMEAL_TARGET_BYTES = 1_200_000;
+const LOGMEAL_MAX_DIMENSION = 1280;
 const mealTypes: { value: MealType; label: string }[] = [
   { value: 'breakfast', label: 'Kahvaltı' },
   { value: 'lunch', label: 'Öğle' },
@@ -31,7 +33,7 @@ export const MealPhotoAnalyzer = () => {
   const [analysis, setAnalysis] = useState<MealAnalysis | null>(null);
   const [mealType, setMealType] = useState<MealType>('lunch');
   const [portion, setPortion] = useState('');
-  const [loading, setLoading] = useState<'analyze' | 'portion' | 'save' | null>(null);
+  const [loading, setLoading] = useState<'prepare' | 'analyze' | 'portion' | 'save' | null>(null);
   const [error, setError] = useState('');
 
   const close = () => {
@@ -43,29 +45,56 @@ export const MealPhotoAnalyzer = () => {
     setError('');
   };
 
-  const handlePickerResult = (result: ImagePicker.ImagePickerResult) => {
+  const prepareForLogMeal = async (asset: ImagePicker.ImagePickerAsset) => {
+    const longestSide = Math.max(asset.width, asset.height);
+    const context = ImageManipulator.manipulate(asset.uri);
+    if (longestSide > LOGMEAL_MAX_DIMENSION) {
+      if (asset.width >= asset.height) context.resize({ width: LOGMEAL_MAX_DIMENSION, height: null });
+      else context.resize({ width: null, height: LOGMEAL_MAX_DIMENSION });
+    }
+    const rendered = await context.renderAsync();
+    let result = await rendered.saveAsync({ base64: true, compress: 0.72, format: SaveFormat.JPEG });
+    if (result.base64 && Math.floor(result.base64.length * 0.75) > LOGMEAL_TARGET_BYTES) {
+      const retryContext = ImageManipulator.manipulate(result.uri);
+      if (result.width >= result.height) retryContext.resize({ width: 960, height: null });
+      else retryContext.resize({ width: null, height: 960 });
+      result = await (await retryContext.renderAsync()).saveAsync({ base64: true, compress: 0.58, format: SaveFormat.JPEG });
+    }
+    return result;
+  };
+
+  const handlePickerResult = async (result: ImagePicker.ImagePickerResult) => {
     if (result.canceled) return;
     const asset = result.assets[0];
-    if (!asset?.base64) {
+    if (!asset?.uri) {
       setError('Fotoğraf okunamadı. Lütfen farklı bir fotoğraf dene.');
       return;
     }
-    const estimatedBytes = Math.floor(asset.base64.length * 0.75);
-    if (estimatedBytes > MAX_IMAGE_BYTES) {
-      setError('Fotoğraf en fazla 6 MB olabilir. Daha düşük çözünürlüklü bir fotoğraf seç.');
-      return;
-    }
-    setPhoto({ uri: asset.uri, imageBase64: asset.base64, mimeType: asset.mimeType, fileName: asset.fileName ?? undefined });
-    setAnalysis(null);
-    setPortion('');
+    setLoading('prepare');
     setError('');
+    try {
+      const prepared = await prepareForLogMeal(asset);
+      if (!prepared.base64) throw new Error('Fotoğraf dönüştürülemedi.');
+      const estimatedBytes = Math.floor(prepared.base64.length * 0.75);
+      if (estimatedBytes > LOGMEAL_TARGET_BYTES) {
+        setError('Fotoğraf hazırlanamadı. Daha düşük çözünürlüklü bir fotoğraf seç.');
+        return;
+      }
+      setPhoto({ uri: prepared.uri, imageBase64: prepared.base64, mimeType: 'image/jpeg', fileName: 'meal.jpg' });
+      setAnalysis(null);
+      setPortion('');
+    } catch {
+      setError('Fotoğraf analiz için hazırlanamadı. Lütfen tekrar çekmeyi dene.');
+    } finally {
+      setLoading(null);
+    }
   };
 
   const pickerOptions: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
     allowsEditing: true,
     quality: 0.7,
-    base64: true,
+    base64: false,
   };
 
   const takePhoto = async () => {
@@ -77,12 +106,12 @@ export const MealPhotoAnalyzer = () => {
         return;
       }
     }
-    handlePickerResult(await ImagePicker.launchCameraAsync(pickerOptions));
+    await handlePickerResult(await ImagePicker.launchCameraAsync(pickerOptions));
   };
 
   const pickPhoto = async () => {
     setError('');
-    handlePickerResult(await ImagePicker.launchImageLibraryAsync(pickerOptions));
+    await handlePickerResult(await ImagePicker.launchImageLibraryAsync(pickerOptions));
   };
 
   const analyze = async () => {
@@ -147,8 +176,8 @@ export const MealPhotoAnalyzer = () => {
       <ModalSheet visible={visible} onClose={close} title="Fotoğraftan Öğün Ekle" fullHeight>
         <AppText style={styles.muted}>Yemeğini net, aydınlık ve mümkünse doğrudan üstten çek. Sonuçlar yaklaşık değerlerdir.</AppText>
         <View style={styles.sourceRow}>
-          <Button label="Kamera" icon="camera-outline" variant="secondary" onPress={() => void takePhoto()} style={styles.sourceButton} />
-          <Button label="Galeri" icon="image-multiple-outline" variant="secondary" onPress={() => void pickPhoto()} style={styles.sourceButton} />
+          <Button label="Kamera" icon="camera-outline" variant="secondary" loading={loading === 'prepare'} disabled={Boolean(loading)} onPress={() => void takePhoto()} style={styles.sourceButton} />
+          <Button label="Galeri" icon="image-multiple-outline" variant="secondary" disabled={Boolean(loading)} onPress={() => void pickPhoto()} style={styles.sourceButton} />
         </View>
 
         {photo ? <Image source={{ uri: photo.uri }} style={styles.preview} resizeMode="cover" /> : (
