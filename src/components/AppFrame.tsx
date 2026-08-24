@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow, spacing, typography } from '../constants';
+import { colors, radius, spacing, typography } from '../constants';
 import { AppText, Avatar, IconButton, IconName } from './ui';
 
 export interface TabItem<T extends string> {

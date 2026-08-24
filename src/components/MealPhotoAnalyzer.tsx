@@ -22,16 +22,22 @@ interface PickedPhoto {
   fileName?: string;
 }
 
+interface FoodDraft {
+  name: string;
+  removed: boolean;
+}
+
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'İşlem tamamlanamadı. Lütfen tekrar dene.';
 
 export const MealPhotoAnalyzer = () => {
-  const { analyzeMealPhoto, recalculateMealAnalysis, saveAnalyzedMeal } = useApp();
+  const { analyzeMealPhoto, customizeMealAnalysis, recalculateMealAnalysis, saveAnalyzedMeal } = useApp();
   const [visible, setVisible] = useState(false);
   const [photo, setPhoto] = useState<PickedPhoto | null>(null);
   const [analysis, setAnalysis] = useState<MealAnalysis | null>(null);
   const [mealType, setMealType] = useState<MealType>('lunch');
   const [portion, setPortion] = useState('');
-  const [loading, setLoading] = useState<'analyze' | 'portion' | 'save' | null>(null);
+  const [foodDrafts, setFoodDrafts] = useState<FoodDraft[]>([]);
+  const [loading, setLoading] = useState<'analyze' | 'foods' | 'portion' | 'save' | null>(null);
   const [error, setError] = useState('');
 
   const close = () => {
@@ -40,6 +46,7 @@ export const MealPhotoAnalyzer = () => {
     setPhoto(null);
     setAnalysis(null);
     setPortion('');
+    setFoodDrafts([]);
     setError('');
   };
 
@@ -58,6 +65,7 @@ export const MealPhotoAnalyzer = () => {
     setPhoto({ uri: asset.uri, imageBase64: asset.base64, mimeType: asset.mimeType, fileName: asset.fileName ?? undefined });
     setAnalysis(null);
     setPortion('');
+    setFoodDrafts([]);
     setError('');
   };
 
@@ -93,6 +101,27 @@ export const MealPhotoAnalyzer = () => {
       const result = await analyzeMealPhoto(photo);
       setAnalysis(result);
       setPortion(result.portionGrams ? `${result.portionGrams}` : '');
+      setFoodDrafts(result.foods.map((food) => ({ name: food.name, removed: false })));
+    } catch (nextError) {
+      setError(errorMessage(nextError));
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const foodDraftsDirty = Boolean(analysis) && foodDrafts.some((draft, index) =>
+    draft.removed || draft.name.trim() !== analysis?.foods[index]?.name,
+  );
+
+  const applyFoodCorrections = async () => {
+    if (!analysis) return;
+    setLoading('foods');
+    setError('');
+    try {
+      const result = await customizeMealAnalysis(analysis.analysisToken, foodDrafts);
+      setAnalysis(result);
+      setPortion(result.portionGrams ? `${result.portionGrams}` : '');
+      setFoodDrafts(result.foods.map((food) => ({ name: food.name, removed: false })));
     } catch (nextError) {
       setError(errorMessage(nextError));
     } finally {
@@ -113,6 +142,7 @@ export const MealPhotoAnalyzer = () => {
       const result = await recalculateMealAnalysis(analysis.analysisToken, grams);
       setAnalysis(result);
       setPortion(result.portionGrams ? `${result.portionGrams}` : `${grams}`);
+      setFoodDrafts(result.foods.map((food) => ({ name: food.name, removed: false })));
     } catch (nextError) {
       setError(errorMessage(nextError));
     } finally {
@@ -122,6 +152,10 @@ export const MealPhotoAnalyzer = () => {
 
   const save = async () => {
     if (!analysis || !photo) return;
+    if (foodDraftsDirty) {
+      setError('Öğünü kaydetmeden önce yiyecek düzeltmelerini uygula.');
+      return;
+    }
     setLoading('save');
     setError('');
     try {
@@ -139,12 +173,13 @@ export const MealPhotoAnalyzer = () => {
     setPhoto(null);
     setAnalysis(null);
     setPortion('');
+    setFoodDrafts([]);
   };
 
   return (
     <>
-      <Button label="📷 Fotoğraftan Öğün Ekle" icon="camera-plus-outline" variant="accent" onPress={() => setVisible(true)} />
-      <ModalSheet visible={visible} onClose={close} title="Fotoğraftan Öğün Ekle" fullHeight>
+      <Button label="Fotoğraftan Öğün Ekle" icon="camera-plus-outline" variant="accent" onPress={() => setVisible(true)} />
+      <ModalSheet visible={visible} onClose={close} title="Fotoğraftan Öğün Ekle" fullHeight={Boolean(photo)}>
         <AppText style={styles.muted}>Yemeğini net, aydınlık ve mümkünse doğrudan üstten çek. Sonuçlar yaklaşık değerlerdir.</AppText>
         <View style={styles.sourceRow}>
           <Button label="Kamera" icon="camera-outline" variant="secondary" onPress={() => void takePhoto()} style={styles.sourceButton} />
@@ -160,17 +195,32 @@ export const MealPhotoAnalyzer = () => {
         {analysis ? (
           <>
             <Card style={styles.resultCard}>
+              <View style={styles.approximateBanner}><MaterialCommunityIcons name="information-outline" size={17} color={colors.warning} /><AppText style={styles.approximateText}>Fotoğrafa dayalı yaklaşık sonuçtur; kaydetmeden önce kontrol et.</AppText></View>
               <AppText style={styles.eyebrow}>LOGMEAL ANALİZİ</AppText>
               <AppText style={typography.h2}>{analysis.name}</AppText>
-              {analysis.foods.map((food, index) => (
-                <View key={`${food.name}-${index}`} style={styles.foodItem}>
-                  <View style={styles.foodBullet} />
-                  <View style={styles.flex}>
-                    <AppText style={typography.bodyMedium}>{food.name}{food.portionGrams ? ` · ${Math.round(food.portionGrams)} g` : ''}</AppText>
-                    {food.ingredients.length ? <AppText style={styles.muted}>{food.ingredients.map((item) => item.name).join(' · ')}</AppText> : null}
+              <AppText style={styles.editHint}>Yanlış tanınan adı düzeltebilir veya tabağında olmayan yiyeceği kaldırabilirsin.</AppText>
+              {foodDrafts.map((draft, index) => {
+                const food = analysis.foods[index];
+                return (
+                  <View key={`${food?.name ?? 'food'}-${index}`} style={[styles.foodEditor, draft.removed && styles.foodEditorRemoved]}>
+                    <TextField
+                      containerStyle={styles.flex}
+                      label={`Yiyecek ${index + 1}${food?.portionGrams ? ` · ${Math.round(food.portionGrams)} g` : ''}`}
+                      value={draft.name}
+                      editable={!draft.removed}
+                      onChangeText={(name) => setFoodDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name } : item))}
+                    />
+                    <Button
+                      label={draft.removed ? 'Geri al' : 'Kaldır'}
+                      icon={draft.removed ? 'undo-variant' : 'close'}
+                      compact
+                      variant="ghost"
+                      onPress={() => setFoodDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, removed: !item.removed } : item))}
+                    />
                   </View>
-                </View>
-              ))}
+                );
+              })}
+              {foodDraftsDirty ? <Button label="Düzeltmeleri Uygula" icon="check" compact variant="secondary" onPress={() => void applyFoodCorrections()} loading={loading === 'foods'} disabled={Boolean(loading)} /> : null}
               <View style={styles.macroGrid}>
                 <Macro label="Kalori" value={`${Math.round(analysis.caloriesKcal)} kcal`} />
                 <Macro label="Protein" value={`${analysis.proteinG.toFixed(1)} g`} />
@@ -179,12 +229,12 @@ export const MealPhotoAnalyzer = () => {
               </View>
             </Card>
 
-            {analysis.portionGrams ? (
+            {analysis.portionGrams && analysis.portionEditable !== false ? (
               <Card style={styles.portionCard}>
                 <TextField label="Toplam porsiyon (gram)" value={portion} onChangeText={(text) => setPortion(text.replace(/[^0-9,.]/g, ''))} keyboardType="decimal-pad" />
                 <Button label="Porsiyona Göre Güncelle" icon="scale" compact variant="secondary" onPress={() => void updatePortion()} loading={loading === 'portion'} disabled={Boolean(loading)} />
               </Card>
-            ) : <AppText style={styles.warning}>LogMeal bu fotoğraf için gramaj döndürmedi; porsiyon düzeltmesi kullanılamıyor.</AppText>}
+            ) : <AppText style={styles.warning}>{analysis.portionEditable === false ? 'Bir yiyecek kaldırıldığı için toplamlar tespit edilen gramaja göre yaklaşık ölçeklendi; yeniden porsiyonlandırma kapatıldı.' : 'LogMeal bu fotoğraf için gramaj döndürmedi; porsiyon düzeltmesi kullanılamıyor.'}</AppText>}
 
             <View style={styles.typeBlock}>
               <AppText style={styles.fieldLabel}>Öğün tipi</AppText>
@@ -211,9 +261,12 @@ const styles = StyleSheet.create({
   preview: { width: '100%', aspectRatio: 4 / 3, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted },
   placeholder: { minHeight: 180, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   resultCard: { gap: spacing.md, backgroundColor: '#0D1511', borderColor: '#304035' },
+  approximateBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.warningSoft },
+  approximateText: { flex: 1, ...typography.caption, color: colors.warning },
   eyebrow: { ...typography.label, color: colors.accent, letterSpacing: 1.2 },
-  foodItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  foodBullet: { width: 7, height: 7, borderRadius: 4, marginTop: 8, backgroundColor: colors.primary },
+  editHint: { ...typography.caption, color: colors.inkSoft },
+  foodEditor: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
+  foodEditorRemoved: { opacity: 0.5 },
   macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   macro: { width: '47%', flexGrow: 1, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
   macroLabel: { ...typography.caption, color: colors.inkSoft },

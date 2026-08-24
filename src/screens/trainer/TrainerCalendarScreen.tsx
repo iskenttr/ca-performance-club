@@ -6,7 +6,7 @@ import { AppText, Avatar, Button, Card, Chip, EmptyState, ModalSheet, Page, Segm
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { Appointment, Trainer } from '../../types/domain';
-import { formatAppointment, formatDate, formatTime, toDateInput } from '../../utils/date';
+import { formatTime, toDateInput } from '../../utils/date';
 
 type CalendarFilter = 'upcoming' | 'pending' | 'history';
 

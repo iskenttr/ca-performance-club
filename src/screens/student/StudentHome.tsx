@@ -43,7 +43,7 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
     await connectHealth();
   };
 
-  const modules: Array<{ title: string; subtitle: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; route: StudentRoute }> = [
+  const modules: { title: string; subtitle: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; route: StudentRoute }[] = [
     { title: 'Beslenme planım', subtitle: data?.nutritionPlans.find((item) => item.studentId === student.id)?.title ?? 'Plan bekleniyor', icon: 'food-apple-outline', color: '#29331C', route: 'program' },
     { title: 'Ölçümlerim', subtitle: latestMeasurement ? `${latestMeasurement.weightKg.toFixed(1)} kg · ${formatShortDate(latestMeasurement.date)}` : 'İlk ölçümünü ekle', icon: 'chart-line', color: '#1A273D', route: 'progress' },
     { title: 'Gelişim fotoğrafları', subtitle: `${data?.progressPhotos.filter((item) => item.studentId === student.id).length ?? 0} fotoğraf`, icon: 'image-multiple-outline', color: '#30251F', route: 'progress' },

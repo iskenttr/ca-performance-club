@@ -6,7 +6,7 @@ import { AppText, Button, Card, Chip, EmptyState, ModalSheet, Page, SectionHeade
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { Appointment, Student } from '../../types/domain';
-import { formatAppointment, formatDate, formatTime, toDateInput } from '../../utils/date';
+import { formatDate, formatTime, toDateInput } from '../../utils/date';
 
 const statusMeta: Record<Appointment['status'], { label: string; tone: 'success' | 'warning' | 'danger' | 'default' }> = {
   confirmed: { label: 'Onaylandı', tone: 'success' },

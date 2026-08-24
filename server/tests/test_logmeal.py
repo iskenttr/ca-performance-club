@@ -12,6 +12,7 @@ if SERVER_DIR not in sys.path:
 
 from logmeal import (  # noqa: E402
     MealAnalysisError,
+    customize_analysis_result,
     decode_image_payload,
     issue_analysis_token,
     parse_logmeal_analysis,
@@ -85,6 +86,28 @@ class LogMealContractTests(unittest.TestCase):
         with self.assertRaises(MealAnalysisError) as caught:
             parse_logmeal_analysis(self.segmentation, self.ingredients, self.nutrition)
         self.assertEqual(caught.exception.status, 422)
+
+    def test_user_can_correct_food_name_without_changing_totals(self):
+        result, quantities = parse_logmeal_analysis(self.segmentation, self.ingredients, self.nutrition)
+        customized, next_quantities = customize_analysis_result(result, quantities, [
+            {'name': 'Brokoli', 'removed': False},
+            {'name': 'Izgara tavuk', 'removed': False},
+        ])
+        self.assertEqual(customized['name'], 'Brokoli, Izgara tavuk')
+        self.assertEqual(customized['caloriesKcal'], result['caloriesKcal'])
+        self.assertEqual(next_quantities, quantities)
+
+    def test_removed_food_scales_totals_by_detected_weight(self):
+        result, quantities = parse_logmeal_analysis(self.segmentation, self.ingredients, self.nutrition)
+        customized, next_quantities = customize_analysis_result(result, quantities, [
+            {'name': 'Brokoli', 'removed': False},
+            {'name': 'Şnitzel', 'removed': True},
+        ])
+        self.assertEqual(customized['foods'][0]['name'], 'Brokoli')
+        self.assertAlmostEqual(customized['portionGrams'], 148.0, places=1)
+        self.assertAlmostEqual(customized['caloriesKcal'], 474.5 * 148 / 328.2, places=1)
+        self.assertFalse(customized['portionEditable'])
+        self.assertEqual(next_quantities, [])
 
     def test_analysis_token_is_bound_to_student(self):
         result, quantities = parse_logmeal_analysis(self.segmentation, self.ingredients, self.nutrition)

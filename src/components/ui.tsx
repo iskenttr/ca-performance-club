@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { ComponentProps, PropsWithChildren, ReactNode } from 'react';
+import React, { ComponentProps, PropsWithChildren } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -236,7 +236,7 @@ export const SegmentedControl = <T extends string>({
   onChange,
 }: {
   value: T;
-  options: Array<{ value: T; label: string }>;
+  options: { value: T; label: string }[];
   onChange: (value: T) => void;
 }) => (
   <View style={styles.segmented}>

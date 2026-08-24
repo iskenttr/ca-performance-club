@@ -28,7 +28,7 @@ export const ChatThread = ({ studentId }: { studentId: string }) => {
 
   useEffect(() => {
     markThreadRead(studentId);
-  }, [studentId]);
+  }, [markThreadRead, studentId]);
 
   const submit = () => {
     if (!draft.trim()) return;

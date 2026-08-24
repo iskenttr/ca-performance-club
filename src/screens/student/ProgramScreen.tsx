@@ -5,7 +5,7 @@ import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 
 import { TopBar } from '../../components/AppFrame';
 import { ExerciseLibrary } from '../../components/ExerciseLibrary';
 import { MealPhotoAnalyzer } from '../../components/MealPhotoAnalyzer';
-import { DailyNutritionSummary, MealHistory } from '../../components/MealTracking';
+import { DailyNutritionSummary, MealHistory, NutritionTrend } from '../../components/MealTracking';
 import { AppText, Card, Chip, EmptyState, Page, SegmentedControl } from '../../components/ui';
 import { colors, radius, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
@@ -56,7 +56,7 @@ const buildMuscleLoad = (exercises: Exercise[]) => {
 };
 
 export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
-  const { data, user, toggleExercise } = useApp();
+  const { data, user, toggleExercise, updateMeal, deleteMeal, repeatMeal } = useApp();
   const student = user as Student;
   const [view, setView] = useState<ProgramView>('workout');
   const program = data?.workoutPrograms.find((item) => item.studentId === student.id);
@@ -76,7 +76,7 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
   return (
     <View style={styles.root}>
       <TopBar eyebrow="Planım" title="Program" name={student.fullName} onProfile={onProfile} />
-      <Page>
+      <Page contentStyle={styles.pageContent}>
         <SegmentedControl<ProgramView>
           value={view}
           options={[{ value: 'workout', label: 'Antrenman' }, { value: 'nutrition', label: 'Beslenme' }]}
@@ -232,9 +232,10 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
 
             <MealPhotoAnalyzer />
             <DailyNutritionSummary entries={todayMealEntries} targets={nutrition?.targets} />
+            <NutritionTrend entries={mealEntries} target={nutrition?.targets?.caloriesKcal} />
             <View style={styles.mealsBlock}>
               <AppText style={typography.h2}>Öğün geçmişim</AppText>
-              <MealHistory entries={mealEntries} />
+              <MealHistory entries={mealEntries} editable onUpdate={updateMeal} onDelete={deleteMeal} onRepeat={repeatMeal} />
             </View>
 
             {nutrition ? (
@@ -273,6 +274,7 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  pageContent: { paddingBottom: 156 },
   flex: { flex: 1 },
   editorialHero: { minHeight: 220, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: colors.graphite },
   editorialImage: { borderRadius: radius.xl },
