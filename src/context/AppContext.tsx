@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import { buildNutritionTemplate, buildProgramTemplate, NutritionTemplateId, ProgramTemplateId } from '../data/templates';
 import { demoAccounts } from '../data/seed';
-import { createCredential, normalizeEmail, verifyCredential } from '../services/auth';
+import { normalizeEmail, verifyCredential } from '../services/auth';
 import {
   analyzeMealPhoto as analyzeMealPhotoRequest,
   bookRemoteAppointment,
@@ -91,8 +91,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
             setSessionToken(storedSession.token);
             await saveData(normalizeData(remoteData));
             return;
-          } catch {
-            await saveSession(null);
+          } catch (error) {
+            const status = (error as { status?: number }).status;
+            if (status === 401 || status === 403) await saveSession(null);
           }
         }
         setData(normalizeData(localData));
@@ -200,7 +201,6 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
         item.id === studentId && item.role === 'student' ? { ...item, status: 'active' as const } : item,
       ),
       workoutPrograms: [...current.workoutPrograms.filter((item) => item.studentId !== studentId), program],
-      workoutCompletions: current.workoutCompletions.filter((item) => item.studentId !== studentId),
     }));
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
@@ -404,10 +404,10 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       workoutCompletions: data.workoutCompletions.filter((item) => item.studentId !== sessionUserId),
       mealEntries: data.mealEntries.filter((item) => item.studentId !== sessionUserId),
     };
+    await deleteRemoteAccount(sessionToken);
     setData(next);
     setSessionUserId(null);
     setSessionToken(null);
-    await deleteRemoteAccount(sessionToken);
     await Promise.all([saveData(next), saveSession(null)]);
   };
 
@@ -446,8 +446,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     [data],
   );
 
-  const value = useMemo<AppContextValue>(
-    () => ({
+  const value: AppContextValue = {
       isLoading,
       data,
       user,
@@ -478,9 +477,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       analyzeMealPhoto,
       recalculateMealAnalysis,
       saveAnalyzedMeal,
-    }),
-    [data, isLoading, students, user],
-  );
+  };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

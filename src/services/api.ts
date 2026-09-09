@@ -14,19 +14,28 @@ const apiBase = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
 export const resolveApiUrl = (path: string) => path.startsWith('/') ? `${apiBase}${path}` : path;
 
 const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), path.startsWith('/api/meals/') ? 120_000 : 20_000);
   let response: Response;
+  let payload: Record<string, unknown>;
   try {
     response = await fetch(`${apiBase}${path}`, {
       ...init,
+      signal: controller.signal,
       headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     });
+    payload = await response.json().catch(() => ({}));
   } catch {
+    if (controller.signal.aborted) {
+      throw new Error('Sunucu yanıtı zamanında alınamadı. İşlemin durumunu kontrol edip tekrar dene.');
+    }
     throw new Error('Sunucuya ulaşılamadı. İnternet bağlantını kontrol et.');
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(payload.error ?? 'Sunucu işlemi tamamlanamadı.') as Error & { status?: number };
+    const error = new Error(typeof payload.error === 'string' ? payload.error : 'Sunucu işlemi tamamlanamadı.') as Error & { status?: number };
     error.status = response.status;
     throw error;
   }

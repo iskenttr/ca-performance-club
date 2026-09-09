@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
-import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ImageBackground, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { AnatomyMap } from '../../components/AnatomyMap';
 import { TopBar } from '../../components/AppFrame';
 import { ExerciseLibrary } from '../../components/ExerciseLibrary';
 import { MealPhotoAnalyzer } from '../../components/MealPhotoAnalyzer';
@@ -17,17 +18,6 @@ type ProgramView = 'workout' | 'nutrition';
 
 type MuscleGroup = 'chest' | 'shoulders' | 'arms' | 'back' | 'core' | 'glutes' | 'quads' | 'hamstrings' | 'calves';
 
-const muscleMeta: Record<MuscleGroup, { label: string; points: { top: `${number}%`; left: `${number}%` }[] }> = {
-  chest: { label: 'Göğüs', points: [{ top: '25%', left: '51%' }] },
-  shoulders: { label: 'Omuz', points: [{ top: '22%', left: '40%' }, { top: '22%', left: '61%' }] },
-  arms: { label: 'Kol', points: [{ top: '34%', left: '37%' }, { top: '34%', left: '65%' }] },
-  back: { label: 'Sırt', points: [{ top: '30%', left: '50%' }] },
-  core: { label: 'Core', points: [{ top: '39%', left: '50%' }] },
-  glutes: { label: 'Kalça', points: [{ top: '48%', left: '51%' }] },
-  quads: { label: 'Ön bacak', points: [{ top: '57%', left: '45%' }, { top: '57%', left: '56%' }] },
-  hamstrings: { label: 'Arka bacak', points: [{ top: '61%', left: '51%' }] },
-  calves: { label: 'Baldır', points: [{ top: '72%', left: '45%' }, { top: '72%', left: '57%' }] },
-};
 
 const exerciseMuscles = (exercise: Exercise): MuscleGroup[] => {
   const name = exercise.name.toLocaleLowerCase('en-US');
@@ -35,12 +25,15 @@ const exerciseMuscles = (exercise: Exercise): MuscleGroup[] => {
   const add = (...items: MuscleGroup[]) => items.forEach((item) => groups.add(item));
 
   if (/squat|lunge|leg press|step-up/.test(name)) add('quads', 'glutes', 'core');
-  if (/deadlift|leg curl/.test(name)) add('hamstrings', 'glutes', 'back', 'core');
+  if (/deadlift/.test(name)) add('hamstrings', 'glutes', 'back', 'core');
+  if (/leg curl/.test(name)) add('hamstrings');
   if (/bridge|hip thrust/.test(name)) add('glutes', 'hamstrings');
   if (/bench|push-up|chest/.test(name)) add('chest', 'shoulders', 'arms');
   if (/row|pulldown|pull-up|face pull/.test(name)) add('back', 'arms', 'shoulders');
   if (/shoulder press|overhead press/.test(name)) add('shoulders', 'arms', 'core');
-  if (/curl|triceps|farmer carry|battle rope/.test(name)) add('arms', 'shoulders', 'core');
+  if (/curl/.test(name) && !/leg curl/.test(name)) add('arms');
+  if (/triceps/.test(name)) add('arms');
+  if (/farmer carry|battle rope/.test(name)) add('arms', 'shoulders', 'core');
   if (/plank|dead bug/.test(name)) add('core');
   if (/calf/.test(name)) add('calves');
   if (/mobility/.test(name)) add('core', 'glutes');
@@ -52,7 +45,7 @@ const buildMuscleLoad = (exercises: Exercise[]) => {
   exercises.forEach((exercise) => exerciseMuscles(exercise).forEach((group) => counts.set(group, (counts.get(group) ?? 0) + 1)));
   const max = Math.max(...counts.values(), 1);
   return [...counts.entries()]
-    .map(([group, count]) => ({ group, count, intensity: Math.round((count / max) * 100) }))
+    .map(([group, count]) => ({ group, count, intensity: Math.round((count / max) * 100), exercises: exercises.filter((exercise) => exerciseMuscles(exercise).includes(group)).map((exercise) => exercise.name) }))
     .sort((a, b) => b.count - a.count);
 };
 
@@ -135,40 +128,12 @@ export const ProgramScreen = ({ onProfile }: { onProfile: () => void }) => {
                   <Card style={styles.muscleCard}>
                     <View style={styles.muscleHeader}>
                       <View style={styles.muscleHeaderCopy}>
-                        <AppText style={styles.muscleEyebrow}>KAS AKTİVASYON HARİTASI</AppText>
-                        <AppText style={typography.h2}>Bugün nereler çalışıyor?</AppText>
+                        <AppText style={styles.muscleEyebrow}>ANATOMİK KAS HARİTASI</AppText>
+                        <AppText style={[typography.h2, { color: '#F0F6F4' }]}>Hangi kaslar çalışıyor?</AppText>
                       </View>
                       <View style={styles.livePill}><View style={styles.liveDot} /><AppText style={styles.liveText}>PROGRAMA GÖRE</AppText></View>
                     </View>
-                    <View style={styles.bodyMap}>
-                      <Image source={require('../../../assets/premium/body-progress-scan.png')} style={styles.bodyMapImage} resizeMode="contain" />
-                      <LinearGradient pointerEvents="none" colors={['rgba(7,10,8,0)', 'rgba(7,10,8,0.04)', 'rgba(7,10,8,0.64)']} style={StyleSheet.absoluteFill} />
-                      {muscleLoad.flatMap((item) => muscleMeta[item.group].points.map((point, pointIndex) => (
-                        <View
-                          key={`${item.group}-${pointIndex}`}
-                          style={[
-                            styles.muscleSpot,
-                            point,
-                            { opacity: 0.55 + item.intensity / 240, transform: [{ translateX: -10 }, { translateY: -10 }, { scale: 0.88 + item.intensity / 500 }] },
-                          ]}
-                        >
-                          <View style={styles.muscleSpotCore} />
-                        </View>
-                      )))}
-                      <View style={styles.bodyMapCaption}>
-                        <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.accent} />
-                        <AppText style={styles.bodyMapCaptionText}>Parlak bölgeler bu antrenmanda daha fazla yük alır.</AppText>
-                      </View>
-                    </View>
-                    <View style={styles.muscleLegend}>
-                      {muscleLoad.map((item) => (
-                        <View key={item.group} style={styles.muscleChip}>
-                          <View style={[styles.muscleChipBar, { opacity: 0.45 + item.intensity / 180 }]} />
-                          <View style={styles.flex}><AppText style={styles.muscleChipLabel}>{muscleMeta[item.group].label}</AppText><AppText style={styles.muscleChipDetail}>{item.count} hareket · %{item.intensity} yoğunluk</AppText></View>
-                        </View>
-                      ))}
-                    </View>
-                    <AppText style={styles.muscleDisclaimer}>Gösterim, programdaki hareket adlarına göre hazırlanır; tıbbi kas analizi değildir.</AppText>
+                    <AnatomyMap key={selectedDay.id} load={muscleLoad} />
                   </Card>
                   <ExerciseLibrary
                     names={program.days.flatMap((programDay) =>

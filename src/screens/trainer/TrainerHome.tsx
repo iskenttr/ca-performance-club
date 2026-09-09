@@ -14,7 +14,6 @@ import type { TrainerRoute } from './TrainerApp';
 export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: TrainerRoute) => void; onStudent: (studentId: string) => void }) => {
   const { data, user, students } = useApp();
   const trainer = user as Trainer;
-  const activeStudents = students.filter((item) => item.status === 'active').length;
   const newStudents = students.filter((item) => item.status === 'new');
   const unread = data?.messages.filter((item) => item.senderId !== TRAINER_ID && !item.readAt).length ?? 0;
   const upcoming = (data?.appointments.filter((item) => item.status !== 'cancelled' && item.status !== 'completed' && new Date(item.startAt) >= new Date()) ?? []).sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
@@ -27,6 +26,14 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
   const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000);
   const weeklyLessons = data?.appointments.filter((item) => item.status !== 'cancelled' && new Date(item.startAt) >= weekStart && new Date(item.startAt) < weekEnd).length ?? 0;
+  const weeklyLessonCounts = Array.from({ length: 7 }, (_, index) => {
+    const start = new Date(weekStart);
+    start.setDate(start.getDate() + index);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return data?.appointments.filter((item) => item.status !== 'cancelled'
+      && new Date(item.startAt) >= start && new Date(item.startAt) < end).length ?? 0;
+  });
   const recentCutoff = Date.now() - 7 * 86_400_000;
   const atRiskStudents = students.filter((student) => {
     if (student.status !== 'active' || !data?.workoutPrograms.some((item) => item.studentId === student.id)) return false;
@@ -51,8 +58,8 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
         <LinearGradient colors={['rgba(3,5,4,0.20)', 'rgba(3,5,4,0.92)']} start={{ x: 1, y: 0 }} end={{ x: 0, y: 0 }} style={styles.heroOverlay}>
           <View style={styles.heroIcon}><MaterialCommunityIcons name="whistle-outline" size={29} color={colors.primary} /></View>
           <View style={styles.flex}>
-            <AppText style={styles.heroEyebrow}>GÜNAYDIN CEM HOCA</AppText>
-            <AppText style={styles.heroTitle}>{todayLessons.length ? `Bugün ${todayLessons.length} birebir dersin var.` : 'Bugünkü takvimin sakin.'}</AppText>
+            <AppText style={styles.heroEyebrow}>MERHABA CEM HOCA</AppText>
+            <AppText style={styles.heroTitle}>{todayLessons.length ? `Bugün ${todayLessons.length} yaklaşan dersin var.` : 'Bugün yaklaşan dersin yok.'}</AppText>
             <AppText style={styles.heroSubtitle}>{upcoming.length} yaklaşan ders · {unread} okunmamış mesaj</AppText>
           </View>
           <Pressable onPress={() => onNavigate('calendar')} style={styles.heroArrow}><MaterialCommunityIcons name="arrow-right" size={22} color={colors.primary} /></Pressable>
@@ -61,18 +68,18 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
 
         <Card style={styles.commandCard}>
           <View style={styles.commandHeader}>
-            <View><AppText style={styles.commandEyebrow}>HAFTALIK TEMPO</AppText><AppText style={styles.commandValue}>{todayLessons.length + upcoming.length}<AppText style={styles.commandUnit}> temas noktası</AppText></AppText></View>
-            <View style={styles.livePill}><View style={styles.liveDot} /><AppText style={styles.liveText}>CANLI</AppText></View>
+            <View><AppText style={styles.commandEyebrow}>HAFTALIK DERS DAĞILIMI</AppText><AppText style={styles.commandValue}>{weeklyLessons}<AppText style={styles.commandUnit}> ders</AppText></AppText></View>
+            <View style={styles.livePill}><View style={styles.liveDot} /><AppText style={styles.liveText}>BU HAFTA</AppText></View>
           </View>
-          <TrendChart values={[2, 4, 3, 6, 5, Math.max(6, upcoming.length), activeStudents]} height={84} />
-          <View style={styles.commandMeta}><AppText style={styles.commandMetaText}>PZT</AppText><AppText style={styles.commandMetaText}>BUGÜN</AppText><AppText style={styles.commandMetaText}>PAZ</AppText></View>
+          <TrendChart values={weeklyLessonCounts} height={84} />
+          <View style={styles.commandMeta}>{['PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT', 'PAZ'].map((label, index) => <AppText key={label} style={styles.commandMetaText}>{label} {weeklyLessonCounts[index]}</AppText>)}</View>
         </Card>
 
         <View style={styles.statsGrid}>
           <StatCard icon="calendar-week-outline" value={`${weeklyLessons}`} label="Bu haftaki ders" color={colors.infoSoft} onPress={() => onNavigate('calendar')} />
           <StatCard icon="run-fast" value={`${atRiskStudents.length}`} label="Programı aksatan" color={colors.dangerSoft} onPress={() => onNavigate('students')} />
           <StatCard icon="ticket-confirmation-outline" value={`${expiringPackages.length}`} label="Paketi bitiyor" color={colors.warningSoft} onPress={() => onNavigate('students')} />
-          <StatCard icon="bell-badge-outline" value={`${notifications.length}`} label="Yeni bildirim" color={colors.primaryLight} onPress={() => onNavigate('messages')} />
+          <StatCard icon="bell-badge-outline" value={`${unread}`} label="Okunmamış mesaj" color={colors.primaryLight} onPress={() => onNavigate('messages')} />
         </View>
 
         {(atRiskStudents.length || expiringPackages.length) ? (
@@ -98,7 +105,7 @@ export const TrainerHome = ({ onNavigate, onStudent }: { onNavigate: (route: Tra
             const student = students.find((item) => item.id === event.studentId);
             const icon = event.type === 'meal' ? 'food-apple-outline' : event.type === 'measurement' ? 'scale-bathroom' : 'message-text-outline';
             return (
-              <Card key={`${event.type}-${event.id}`} onPress={() => onStudent(event.studentId)} style={styles.activityCard}>
+              <Card key={`${event.type}-${event.id}`} onPress={() => event.type === 'message' ? onNavigate('messages') : onStudent(event.studentId)} style={styles.activityCard}>
                 <View style={styles.activityIcon}><MaterialCommunityIcons name={icon} size={21} color={colors.primary} /></View>
                 <View style={styles.flex}><AppText style={typography.bodyMedium}>{event.title} · {student?.fullName ?? 'Öğrenci'}</AppText><AppText style={styles.studentGoal} numberOfLines={1}>{event.detail}</AppText></View>
                 <AppText style={styles.activityDate}>{formatDate(event.at)}</AppText>

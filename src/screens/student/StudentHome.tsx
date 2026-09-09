@@ -57,7 +57,7 @@ export const StudentHome = ({ onNavigate }: { onNavigate: (route: StudentRoute) 
         <ImageBackground source={require('../../../assets/premium/athlete-hero.png')} style={styles.workoutHero} imageStyle={styles.workoutImage} resizeMode="cover">
         <LinearGradient colors={['rgba(5,8,7,0.12)', 'rgba(5,8,7,0.66)', '#090D0B']} locations={[0, 0.54, 1]} style={styles.heroOverlay}>
           <View style={styles.heroTop}>
-            <Chip label={completed ? `${completed}/${total} tamamlandı` : 'Bugünün antrenmanı'} selected />
+            <Chip label={completed ? `${completed}/${total} tamamlandı` : 'Programının ilk günü'} selected />
             <View style={styles.durationPill}>
               <MaterialCommunityIcons name="clock-outline" size={15} color={colors.white} />
               <AppText style={styles.durationText}>{day?.durationMinutes ?? 0} dk</AppText>
