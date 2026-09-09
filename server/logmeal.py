@@ -279,6 +279,56 @@ def recalculate_image(image_id, quantities, portion_grams, token):
     return parse_logmeal_analysis(segmentation, ingredients, nutrition)
 
 
+def customize_analysis_result(result, quantities, food_edits):
+    """Apply user label/removal corrections without inventing nutrient fields.
+
+    LogMeal returns nutrition for the full plate. Label changes therefore keep
+    totals intact. When an item is removed, totals are scaled by the retained
+    detected weight (or item count when LogMeal supplied no per-item weight).
+    """
+    foods = result.get('foods')
+    if not isinstance(foods, list) or not foods:
+        raise MealAnalysisError(400, 'Düzenlenebilir yiyecek bulunamadı.')
+    if not isinstance(food_edits, list) or len(food_edits) != len(foods):
+        raise MealAnalysisError(400, 'Yiyecek düzeltmeleri geçersiz.')
+
+    retained = []
+    retained_indexes = []
+    for index, (food, edit) in enumerate(zip(foods, food_edits)):
+        if not isinstance(food, dict) or not isinstance(edit, dict):
+            raise MealAnalysisError(400, 'Yiyecek düzeltmeleri geçersiz.')
+        if edit.get('removed') is True:
+            continue
+        name = str(edit.get('name') or '').strip()
+        if not name or len(name) > 120:
+            raise MealAnalysisError(400, 'Yiyecek adları 1–120 karakter arasında olmalı.')
+        retained.append({**food, 'name': name})
+        retained_indexes.append(index)
+    if not retained:
+        raise MealAnalysisError(400, 'Öğünde en az bir yiyecek kalmalı.')
+
+    original_weight = sum(_positive_number(food.get('portionGrams')) or 0 for food in foods if isinstance(food, dict))
+    retained_weight = sum(_positive_number(food.get('portionGrams')) or 0 for food in retained)
+    ratio = retained_weight / original_weight if original_weight > 0 and retained_weight > 0 else len(retained) / len(foods)
+    customized = {
+        **result,
+        'foods': retained,
+        'name': ', '.join(food['name'] for food in retained),
+    }
+    removed_any = len(retained) != len(foods)
+    if removed_any:
+        for key in ('portionGrams', 'caloriesKcal', 'proteinG', 'carbsG', 'fatG'):
+            if isinstance(result.get(key), (int, float)):
+                customized[key] = _round(result[key] * ratio)
+        customized['portionEditable'] = False
+
+    retained_quantities = [
+        quantity for index, quantity in enumerate(quantities)
+        if index in retained_indexes and isinstance(quantity, dict)
+    ] if not removed_any else []
+    return customized, retained_quantities
+
+
 def issue_analysis_token(secret, user_id, result, quantities, image_sha256):
     payload = {
         'kind': 'meal-analysis',

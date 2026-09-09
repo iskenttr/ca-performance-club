@@ -94,6 +94,16 @@ export const recalculateMealAnalysis = (analysisToken: string, portionGrams: num
     body: JSON.stringify({ analysisToken, portionGrams }),
   });
 
+export const customizeMealAnalysis = (
+  analysisToken: string,
+  foods: { name: string; removed: boolean }[],
+  token: string,
+) => request<MealAnalysis>('/api/meals/customize', {
+  method: 'POST',
+  headers: authHeaders(token),
+  body: JSON.stringify({ analysisToken, foods }),
+});
+
 export const saveAnalyzedMeal = (
   input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string },
   token: string,
@@ -102,3 +112,26 @@ export const saveAnalyzedMeal = (
   headers: authHeaders(token),
   body: JSON.stringify(input),
 });
+
+export type MealUpdateInput = Pick<MealEntry, 'name' | 'mealType' | 'caloriesKcal' | 'proteinG' | 'carbsG' | 'fatG'> & {
+  portionGrams?: number;
+};
+
+export const updateMeal = (mealId: string, input: MealUpdateInput, token: string) =>
+  request<{ meal: MealEntry; data: AppData }>(`/api/meals/${encodeURIComponent(mealId)}`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify(input),
+  });
+
+export const deleteMeal = (mealId: string, token: string) =>
+  request<{ ok: true; data: AppData }>(`/api/meals/${encodeURIComponent(mealId)}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+
+export const repeatMeal = (mealId: string, token: string) =>
+  request<{ meal: MealEntry; data: AppData }>(`/api/meals/${encodeURIComponent(mealId)}/repeat`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });

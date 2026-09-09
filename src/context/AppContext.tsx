@@ -1,22 +1,27 @@
 import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
-import React, { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { buildNutritionTemplate, buildProgramTemplate, NutritionTemplateId, ProgramTemplateId } from '../data/templates';
 import { demoAccounts } from '../data/seed';
 import { normalizeEmail, verifyCredential } from '../services/auth';
 import {
   analyzeMealPhoto as analyzeMealPhotoRequest,
   bookRemoteAppointment,
+  customizeMealAnalysis as customizeMealAnalysisRequest,
+  deleteMeal as deleteMealRequest,
   deleteRemoteAccount,
   fetchAppointmentAvailability,
   fetchRemoteData,
   MealPhotoPayload,
+  MealUpdateInput,
   migrateLegacyAccount,
   recalculateMealAnalysis as recalculateMealAnalysisRequest,
+  repeatMeal as repeatMealRequest,
   remoteRegister,
   remoteSignIn,
   saveAnalyzedMeal as saveAnalyzedMealRequest,
   saveRemoteData,
+  updateMeal as updateMealRequest,
 } from '../services/api';
 import { loadData, loadSession, normalizeData, resetStoredData, saveData, saveSession } from '../services/storage';
 import {
@@ -66,7 +71,11 @@ interface AppContextValue {
   resetDemo: () => Promise<void>;
   analyzeMealPhoto: (photo: MealPhotoPayload) => Promise<MealAnalysis>;
   recalculateMealAnalysis: (analysisToken: string, portionGrams: number) => Promise<MealAnalysis>;
+  customizeMealAnalysis: (analysisToken: string, foods: { name: string; removed: boolean }[]) => Promise<MealAnalysis>;
   saveAnalyzedMeal: (input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string }) => Promise<void>;
+  updateMeal: (mealId: string, input: MealUpdateInput) => Promise<void>;
+  deleteMeal: (mealId: string) => Promise<void>;
+  repeatMeal: (mealId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -117,7 +126,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     return () => clearInterval(timer);
   }, [sessionToken]);
 
-  const commit = (recipe: (current: AppData) => AppData) => {
+  const commit = useCallback((recipe: (current: AppData) => AppData) => {
     setData((current) => {
       if (!current) return current;
       const next = recipe(current);
@@ -125,7 +134,7 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       if (sessionToken) void saveRemoteData(next, sessionToken);
       return next;
     });
-  };
+  }, [sessionToken]);
 
   const openSession = async (userId: string, token: string) => {
     setSessionUserId(userId);
@@ -355,18 +364,22 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const markThreadRead = (studentId: string) => {
+  const markThreadRead = useCallback((studentId: string) => {
     if (!sessionUserId) return;
     const now = new Date().toISOString();
-    commit((current) => ({
-      ...current,
-      messages: current.messages.map((item) =>
+    commit((current) => {
+      const hasUnread = current.messages.some((item) => item.studentId === studentId && item.senderId !== sessionUserId && !item.readAt);
+      if (!hasUnread) return current;
+      return {
+        ...current,
+        messages: current.messages.map((item) =>
         item.studentId === studentId && item.senderId !== sessionUserId && !item.readAt
           ? { ...item, readAt: now }
           : item,
-      ),
-    }));
-  };
+        ),
+      };
+    });
+  }, [commit, sessionUserId]);
 
   const toggleExercise = (studentId: string, exerciseId: string) => {
     const completedOn = toDateInput();
@@ -431,6 +444,9 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
   const recalculateMealAnalysis = (analysisToken: string, portionGrams: number) =>
     recalculateMealAnalysisRequest(analysisToken, portionGrams, requireSessionToken());
 
+  const customizeMealAnalysis = (analysisToken: string, foods: { name: string; removed: boolean }[]) =>
+    customizeMealAnalysisRequest(analysisToken, foods, requireSessionToken());
+
   const saveAnalyzedMeal = async (
     input: MealPhotoPayload & { analysisToken: string; mealType: MealType; eatenAt: string },
   ) => {
@@ -439,6 +455,21 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
     setData(next);
     await saveData(next);
   };
+
+  const applyMealData = async (result: { data: AppData }) => {
+    const next = normalizeData(result.data);
+    setData(next);
+    await saveData(next);
+  };
+
+  const updateMeal = async (mealId: string, input: MealUpdateInput) =>
+    applyMealData(await updateMealRequest(mealId, input, requireSessionToken()));
+
+  const deleteMeal = async (mealId: string) =>
+    applyMealData(await deleteMealRequest(mealId, requireSessionToken()));
+
+  const repeatMeal = async (mealId: string) =>
+    applyMealData(await repeatMealRequest(mealId, requireSessionToken()));
 
   const user = data?.users.find((item) => item.id === sessionUserId) ?? null;
   const students = useMemo(
@@ -476,7 +507,11 @@ export const AppProvider = ({ children }: PropsWithChildren) => {
       resetDemo,
       analyzeMealPhoto,
       recalculateMealAnalysis,
+      customizeMealAnalysis,
       saveAnalyzedMeal,
+      updateMeal,
+      deleteMeal,
+      repeatMeal,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

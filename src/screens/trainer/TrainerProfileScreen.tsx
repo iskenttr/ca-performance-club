@@ -3,7 +3,7 @@ import React from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { AppText, Avatar, Button, Card, Chip, Divider, Page } from '../../components/ui';
-import { colors, radius, spacing, typography } from '../../constants';
+import { colors, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { Trainer } from '../../types/domain';
 

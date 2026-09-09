@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../components/AppFrame';
 import { AppText, Avatar, Button, Card, Chip, Divider, ModalSheet, Page, TextField } from '../../components/ui';
-import { APP_NAME, colors, radius, spacing, typography } from '../../constants';
+import { APP_NAME, colors, spacing, typography } from '../../constants';
 import { useApp } from '../../context/AppContext';
 import { BiologicalSex, Student } from '../../types/domain';
 import { formatDate } from '../../utils/date';

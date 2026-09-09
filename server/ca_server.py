@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 from logmeal import (
     MealAnalysisError,
     analyze_image,
+    customize_analysis_result,
     decode_image_payload,
     issue_analysis_token,
     read_analysis_token,
@@ -319,12 +320,25 @@ class Handler(BaseHTTPRequestHandler):
             return self.analyze_meal(payload)
         if path == '/api/meals/recalculate':
             return self.recalculate_meal(payload)
+        if path == '/api/meals/customize':
+            return self.customize_meal_analysis(payload)
         if path == '/api/meals':
             return self.save_meal(payload)
+        match = re.fullmatch(r'/api/meals/([^/]+)/repeat', path)
+        if match:
+            return self.repeat_meal(match.group(1))
         return self.send_json(404, {'error': 'Bulunamadı.'})
 
     def do_PUT(self):
-        if urlparse(self.path).path != '/api/state':
+        path = urlparse(self.path).path
+        meal_match = re.fullmatch(r'/api/meals/([^/]+)', path)
+        if meal_match:
+            try:
+                payload = self.body_json()
+            except Exception:
+                return self.send_json(400, {'error': 'Geçersiz veri.'})
+            return self.update_meal(meal_match.group(1), payload)
+        if path != '/api/state':
             return self.send_json(404, {'error': 'Bulunamadı.'})
         user_id = self.current_user_id()
         if not user_id:
@@ -361,7 +375,11 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json(200, {'ok': True})
 
     def do_DELETE(self):
-        if urlparse(self.path).path != '/api/account':
+        path = urlparse(self.path).path
+        meal_match = re.fullmatch(r'/api/meals/([^/]+)', path)
+        if meal_match:
+            return self.delete_meal(meal_match.group(1))
+        if path != '/api/account':
             return self.send_json(404, {'error': 'Bulunamadı.'})
         user_id = self.current_user_id()
         if not user_id:
@@ -556,6 +574,20 @@ class Handler(BaseHTTPRequestHandler):
         except MealAnalysisError as exc:
             return self.send_meal_error(exc)
 
+    def customize_meal_analysis(self, payload):
+        try:
+            user_id = self.meal_student()
+            signed = read_analysis_token(secret_key(), str(payload.get('analysisToken') or ''), user_id)
+            result, quantities = customize_analysis_result(
+                signed['result'], signed['quantities'], payload.get('foods'),
+            )
+            result['analysisToken'] = issue_analysis_token(
+                secret_key(), user_id, result, quantities, signed['imageSha256'],
+            )
+            return self.send_json(200, result)
+        except MealAnalysisError as exc:
+            return self.send_meal_error(exc)
+
     def save_meal(self, payload):
         try:
             user_id = self.meal_student()
@@ -608,6 +640,97 @@ class Handler(BaseHTTPRequestHandler):
                 state['mealEntries'].append(meal)
                 save_state(state)
             return self.send_json(201, {'meal': public_meal_entry(meal, user_id), 'data': public_state(state, user_id)})
+        except MealAnalysisError as exc:
+            return self.send_meal_error(exc)
+
+    def owned_meal(self, meal_id):
+        user_id = self.meal_student()
+        state = load_state()
+        meal = next((item for item in state.get('mealEntries', []) if item.get('id') == meal_id), None)
+        if not meal:
+            raise MealAnalysisError(404, 'Öğün bulunamadı.')
+        if meal.get('studentId') != user_id:
+            raise MealAnalysisError(403, 'Bu öğün üzerinde işlem yapamazsın.')
+        return user_id, state, meal
+
+    def update_meal(self, meal_id, payload):
+        try:
+            user_id, state, meal = self.owned_meal(meal_id)
+            name = str(payload.get('name') or '').strip()
+            meal_type = payload.get('mealType')
+            if not name or len(name) > 160:
+                raise MealAnalysisError(400, 'Öğün adı 1–160 karakter arasında olmalı.')
+            if meal_type not in ('breakfast', 'lunch', 'dinner', 'snack'):
+                raise MealAnalysisError(400, 'Geçerli bir öğün tipi seçmelisin.')
+            numeric = {}
+            for key, maximum in (('portionGrams', 5000), ('caloriesKcal', 10000), ('proteinG', 1000), ('carbsG', 2000), ('fatG', 1000)):
+                value = payload.get(key)
+                if value is None and key == 'portionGrams':
+                    continue
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or value > maximum:
+                    raise MealAnalysisError(400, 'Kalori, porsiyon ve makro değerlerini kontrol et.')
+                numeric[key] = round(float(value), 2)
+            updated = {**meal, 'name': name, 'mealType': meal_type, **numeric, 'updatedAt': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+            if 'portionGrams' not in numeric:
+                updated.pop('portionGrams', None)
+            with LOCK:
+                latest = load_state()
+                latest['mealEntries'] = [updated if item.get('id') == meal_id and item.get('studentId') == user_id else item for item in latest.get('mealEntries', [])]
+                save_state(latest)
+            return self.send_json(200, {'meal': public_meal_entry(updated, user_id), 'data': public_state(latest, user_id)})
+        except MealAnalysisError as exc:
+            return self.send_meal_error(exc)
+
+    def delete_meal(self, meal_id):
+        try:
+            user_id, _, meal = self.owned_meal(meal_id)
+            with LOCK:
+                state = load_state()
+                state['mealEntries'] = [item for item in state.get('mealEntries', []) if not (item.get('id') == meal_id and item.get('studentId') == user_id)]
+                save_state(state)
+            relative = meal.get('photoPath')
+            if isinstance(relative, str):
+                candidate = (DATA_DIR / relative).resolve()
+                if MEAL_PHOTO_DIR.resolve() in candidate.parents and candidate.is_file():
+                    try:
+                        candidate.unlink()
+                    except OSError:
+                        pass
+            return self.send_json(200, {'ok': True, 'data': public_state(state, user_id)})
+        except MealAnalysisError as exc:
+            return self.send_meal_error(exc)
+
+    def repeat_meal(self, meal_id):
+        try:
+            user_id, _, meal = self.owned_meal(meal_id)
+            new_id = f"meal-{uuid.uuid4()}"
+            now = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+            relative = meal.get('photoPath')
+            if not isinstance(relative, str):
+                raise MealAnalysisError(404, 'Öğün fotoğrafı bulunamadı.')
+            source = (DATA_DIR / relative).resolve()
+            if MEAL_PHOTO_DIR.resolve() not in source.parents or not source.is_file():
+                raise MealAnalysisError(404, 'Öğün fotoğrafı bulunamadı.')
+            extension = source.suffix or '.jpg'
+            destination = source.parent / f'{new_id}{extension}'
+            try:
+                shutil.copyfile(source, destination)
+                os.chmod(destination, 0o600)
+            except OSError as exc:
+                raise MealAnalysisError(500, 'Öğün fotoğrafı kopyalanamadı. Lütfen tekrar dene.') from exc
+            repeated = {
+                **meal,
+                'id': new_id,
+                'eatenAt': datetime.now().astimezone().isoformat(),
+                'photoPath': str(Path('meal-photos') / user_id / destination.name),
+                'createdAt': now,
+            }
+            repeated.pop('updatedAt', None)
+            with LOCK:
+                state = load_state()
+                state['mealEntries'].append(repeated)
+                save_state(state)
+            return self.send_json(201, {'meal': public_meal_entry(repeated, user_id), 'data': public_state(state, user_id)})
         except MealAnalysisError as exc:
             return self.send_meal_error(exc)
 

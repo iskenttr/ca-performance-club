@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { colors, radius, spacing, typography } from '../constants';
+import { colors, spacing, typography } from '../constants';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types/domain';
 import { formatShortDate } from '../utils/date';

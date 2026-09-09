@@ -3,22 +3,22 @@ import { NutritionPlan, WorkoutDay, WorkoutProgram } from '../types/domain';
 export type ProgramTemplateId = 'starter2' | 'balanced3' | 'strength4';
 export type NutritionTemplateId = 'balanced' | 'performance' | 'light';
 
-export const programTemplateOptions: Array<{
+export const programTemplateOptions: {
   id: ProgramTemplateId;
   title: string;
   description: string;
   days: number;
-}> = [
+}[] = [
   { id: 'starter2', title: 'Temel Başlangıç', description: 'Tüm vücut odaklı, sürdürülebilir başlangıç', days: 2 },
   { id: 'balanced3', title: 'Dengeli Gelişim', description: 'Kuvvet, kondisyon ve mobilite dengesi', days: 3 },
   { id: 'strength4', title: 'Kuvvet 4 Gün', description: 'Üst/alt vücut bölünmüş yoğun plan', days: 4 },
 ];
 
-export const nutritionTemplateOptions: Array<{
+export const nutritionTemplateOptions: {
   id: NutritionTemplateId;
   title: string;
   description: string;
-}> = [
+}[] = [
   { id: 'balanced', title: 'Dengeli Beslenme', description: 'Gün boyu dengeli protein, lif ve karbonhidrat' },
   { id: 'performance', title: 'Performans Desteği', description: 'Antrenman çevresinde enerji ve toparlanma odağı' },
   { id: 'light', title: 'Hafif & Düzenli', description: 'Porsiyon kontrolü ve yüksek tokluk odağı' },

@@ -119,6 +119,7 @@ export interface MealAnalysis {
   name: string;
   foods: AnalyzedFoodItem[];
   portionGrams?: number;
+  portionEditable?: boolean;
   caloriesKcal: number;
   proteinG: number;
   carbsG: number;
